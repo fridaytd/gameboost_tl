@@ -2,7 +2,7 @@
 python -m venv venv
 
 # Activate .venv
-.\venv\bin\Activate.ps1
+.\venv\Script\Activate.ps1
 
 # Install deps
 pip install -r requirements.lock
