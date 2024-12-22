@@ -14,15 +14,15 @@ cd gameboost_tl
 ```
 3. Run install script
 ```Powersheel
-install.ps1
+.\install.ps1
 ```
 4. Copy keys.json file and setting.env to path: C:\gameboost_tl
 4. Run script
 ```PowerShell
-run.ps1
+.\run.ps1
 ```
 
 ### Update
 ```Powershell
-update.ps1
+.\update.ps1
 ```

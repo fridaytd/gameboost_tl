@@ -94,6 +94,7 @@ parse-type==0.6.4
 pdbp==1.6.1
     # via seleniumbase
 pip==24.3.1
+    # via gameboost-tl
     # via seleniumbase
 platformdirs==4.3.6
     # via seleniumbase
