@@ -95,7 +95,7 @@ def currency_price_update(
 def last_update_message(
     now: datetime,
 ) -> str:
-    formatted_date = now.strftime("%-m/%-d/%Y %H:%M:%S")
+    formatted_date = now.strftime("%d/%m/%Y %H:%M:%S")
     return formatted_date
 
 
