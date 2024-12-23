@@ -33,7 +33,7 @@ def main(sb):
     logger.info("Start running")
     run_indexes = get_run_indexes(worksheet)
     logger.info(f"Run index: {run_indexes}")
-    for index in run_indexes[2:]:
+    for index in run_indexes:
         logger.info(f"INDEX (ROW): {index}")
         try:
             product = Product.get(worksheet, index)

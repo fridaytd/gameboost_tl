@@ -113,7 +113,10 @@ def currency_process(
 ) -> CurrencyProcessResult | None:
     logger.info("Currency Proccess")
     logger.info(f"Crawling at: {product.Product_compare}")
-    crwl_offers = currencies_extract(sb, product.Product_compare)
+    url_product_compare = product.Product_compare.replace(
+        "https://gameboost", "https://api.gameboost"
+    )
+    crwl_offers = currencies_extract(sb, url_product_compare)
     if not is_change_price(crwl_offers):
         logger.info("Sheet updating")
         now = datetime.now()

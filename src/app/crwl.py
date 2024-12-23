@@ -11,7 +11,7 @@ def get_soup(
     url: str,
 ) -> BeautifulSoup:
     sb.activate_cdp_mode(url)
-    sb.cdp.sleep(random.uniform(0.5, 0.9))
+    # sb.cdp.sleep(random.uniform(0.5, 0.9))
     soup = BeautifulSoup(sb.cdp.get_page_source(), "html.parser")
     sb.cdp.sleep(random.uniform(0.3, 0.7))
     return soup
