@@ -14,7 +14,9 @@ def is_change_price(
     crwl_offers: list[Offer],
 ) -> bool:
     # If our name in crawled offer do not need to change price
-    if os.environ["MY_SELLER_NAME"] in [offer.seller for offer in crwl_offers]:
+    sorted_crwl_offers = sorted(crwl_offers)
+    min_crwl_offer = sorted_crwl_offers[0]
+    if os.environ["MY_SELLER_NAME"] in min_crwl_offer.seller:
         logger.info(
             f"No need to change price because {os.environ["MY_SELLER_NAME"]} has existed in product compare already"
         )

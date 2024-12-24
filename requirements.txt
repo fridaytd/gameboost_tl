@@ -1,5 +1,0 @@
-python-dotenv>=1.0.1
-seleniumbase>=4.33.11
-beautifulsoup4>=4.12.3
-pydantic>=2.10.4
-gspread>=6.1.4"
