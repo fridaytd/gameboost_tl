@@ -17,9 +17,6 @@ def is_change_price(
     sorted_crwl_offers = sorted(crwl_offers)
     min_crwl_offer = sorted_crwl_offers[0]
     if os.environ["MY_SELLER_NAME"] in min_crwl_offer.seller:
-        logger.info(
-            f"No need to change price because {os.environ["MY_SELLER_NAME"]} has existed in product compare already"
-        )
         return False
 
     return True
@@ -52,10 +49,10 @@ def calculate_price_change(
 
     final_price = None
 
-    if compare_price < min_price:
+    if compare_price <= min_price:
         final_price = min_price
 
-    elif compare_price > max_price:
+    elif compare_price >= max_price:
         final_price = max_price
 
     else:
@@ -87,7 +84,7 @@ def currency_price_update(
         "description": onl_offer["attributes"]["description"],
         "price": currency_price_change_result.final_price,
         "game": onl_offer["attributes"]["game_slug"],
-        "stock": onl_offer["attributes"]["stock"],
+        "stock": product.stock(),
         "min_quantity": onl_offer["attributes"]["min_quantity"],
         "delivery_time": onl_offer["attributes"]["delivery_time"],
     }
@@ -120,9 +117,13 @@ def currency_process(
     )
     crwl_offers = currencies_extract(sb, url_product_compare)
     if not is_change_price(crwl_offers):
+        logger.info(
+            f"No need to change price because {os.environ["MY_SELLER_NAME"]} has smallest price already"
+        )
         logger.info("Sheet updating")
         now = datetime.now()
         product.Last_update = last_update_message(now)
+        product.Note = f"{last_update_message(now)}: No need to change price because {os.environ["MY_SELLER_NAME"]} has smallest price already"
         product.update()
 
         return None
@@ -141,7 +142,7 @@ def currency_process(
     return currency_price_change_result
 
 
-@retry_on_fail()
+@retry_on_fail(max_retries=2)
 def run(
     sb,
     product: Product,

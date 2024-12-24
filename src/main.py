@@ -1,3 +1,4 @@
+from datetime import datetime
 import time
 from seleniumbase import SB
 from gspread.worksheet import Worksheet
@@ -6,7 +7,7 @@ from gspread.worksheet import Worksheet
 from app.utils.logger import logger
 from app.utils.gsheet import worksheet
 from app.models.gsheet_models import Product
-from app.process import run
+from app.process import run, last_update_message
 from pydantic import ValidationError
 
 
@@ -37,13 +38,44 @@ def main(sb):
         logger.info(f"INDEX (ROW): {index}")
         try:
             product = Product.get(worksheet, index)
+
             run(sb, product)
         except ValidationError as e:
             logger.error(f"VALIDATION ERROR AT ROW: {index}")
             logger.error(e.errors())
+            try:
+                now = datetime.now()
+                worksheet.batch_update(
+                    [
+                        {
+                            "range": f"C{index}",
+                            "values": [
+                                [
+                                    f"{last_update_message(now)}: VALIDATION ERROR AT ROW: {index}"
+                                ]
+                            ],
+                        }
+                    ]
+                )
+            except Exception as e:
+                logger.error(e)
+                time.sleep(10)
 
         except Exception as e:
             logger.error(f"FAILED AT ROW: {index}")
+            try:
+                now = datetime.now()
+                worksheet.batch_update(
+                    [
+                        {
+                            "range": f"C{index}",
+                            "values": [[f"{last_update_message(now)}: FAILED: {e}"]],
+                        }
+                    ]
+                )
+            except Exception as e1:
+                logger.error(e1)
+                time.sleep(10)
             logger.exception(e, exc_info=True)
 
         time.sleep(2)

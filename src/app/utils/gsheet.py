@@ -8,6 +8,6 @@ from app.utils.paths import ROOT_PATH
 
 g_client = service_account(ROOT_PATH.joinpath(os.environ["KEYS_PATH"]))
 
-spreadsheet = g_client.open_by_url(os.environ["SPREADSHEET_URL"])
+spreadsheet = g_client.open_by_key(os.environ["SPREADSHEET_KEY"])
 
 worksheet = spreadsheet.worksheet(os.environ["SHEET_NAME"])

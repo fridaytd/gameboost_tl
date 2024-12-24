@@ -99,13 +99,14 @@ class Product(ColSheetModel):
     def min_price(self) -> float:
         g_client = service_account(ROOT_PATH.joinpath(os.environ["KEYS_PATH"]))
 
-        spreadsheet = g_client.open_by_key(self.IDSHEET_MIN)
+        res = g_client.http_client.values_get(
+            id=self.IDSHEET_MIN, range=f"{self.SHEET_MIN}!{self.CELL_MIN}"
+        )
 
-        worksheet = spreadsheet.worksheet(self.SHEET_MIN)
+        min_price = res.get("values", None)
 
-        min_price = worksheet.batch_get([self.CELL_MIN])[0].first()
         if min_price:
-            return float(min_price)
+            return float(min_price[0][0])
 
         raise SheetError(
             f"{self.IDSHEET_MIN}->{self.SHEET_MIN}->{self.CELL_MIN} is None"
@@ -114,13 +115,12 @@ class Product(ColSheetModel):
     def max_price(self) -> float:
         g_client = service_account(ROOT_PATH.joinpath(os.environ["KEYS_PATH"]))
 
-        spreadsheet = g_client.open_by_key(self.IDSHEET_MAX)
-
-        worksheet = spreadsheet.worksheet(self.SHEET_MAX)
-
-        max_price = worksheet.batch_get([self.CELL_MAX])[0].first()
+        res = g_client.http_client.values_get(
+            id=self.IDSHEET_MAX, range=f"{self.SHEET_MAX}!{self.CELL_MAX}"
+        )
+        max_price = res.get("values", None)
         if max_price:
-            return float(max_price)
+            return float(max_price[0][0])
 
         raise SheetError(
             f"{self.IDSHEET_MAX}->{self.SHEET_MAX}->{self.CELL_MAX} is None"
@@ -129,16 +129,16 @@ class Product(ColSheetModel):
     def stock(self) -> int:
         g_client = service_account(ROOT_PATH.joinpath(os.environ["KEYS_PATH"]))
 
-        spreadsheet = g_client.open_by_key(self.IDSHEET_STOCK)
+        res = g_client.http_client.values_get(
+            id=self.IDSHEET_STOCK, range=f"{self.SHEET_STOCK}!{self.CELL_STOCK}"
+        )
 
-        worksheet = spreadsheet.worksheet(self.SHEET_STOCK)
-
-        stock = worksheet.batch_get([self.CELL_STOCK])[0].first()
+        stock = res.get("values", None)
         if stock:
-            return int(stock)
+            return int(stock[0][0])
 
         raise SheetError(
-            f"{self.IDSHEET_STOCK}->{self.IDSHEET_STOCK}->{self.CELL_STOCK} is None"
+            f"{self.IDSHEET_MIN}->{self.SHEET_MIN}->{self.CELL_MIN} is None"
         )
 
     def blacklits(self) -> list[str]:
