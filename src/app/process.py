@@ -64,6 +64,7 @@ def calculate_price_change(
 
     return CurrencyProcessResult(
         final_price=final_price,
+        stock=product.stock(),
         min_price=min_price,
         max_price=max_price,
         compare_price=compare_price,
@@ -84,7 +85,7 @@ def currency_price_update(
         "description": onl_offer["attributes"]["description"],
         "price": currency_price_change_result.final_price,
         "game": onl_offer["attributes"]["game_slug"],
-        "stock": product.stock(),
+        "stock": currency_price_change_result.stock,
         "min_quantity": onl_offer["attributes"]["min_quantity"],
         "delivery_time": onl_offer["attributes"]["delivery_time"],
     }
@@ -101,7 +102,7 @@ def last_update_message(
 def note_message(
     now: datetime, currency_price_change_result: CurrencyProcessResult
 ) -> str:
-    message = f"""{last_update_message(now)}:Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}, GiaSosanh = {currency_price_change_result.compare_price} - Seller: {currency_price_change_result.seller}"""
+    message = f"""{last_update_message(now)}:Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}, GiaSosanh = {currency_price_change_result.compare_price} - Seller: {currency_price_change_result.seller}"""
 
     return message
 
