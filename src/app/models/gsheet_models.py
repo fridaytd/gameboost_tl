@@ -112,7 +112,7 @@ class Product(ColSheetModel):
             f"{self.IDSHEET_MIN}->{self.SHEET_MIN}->{self.CELL_MIN} is None"
         )
 
-    def max_price(self) -> float:
+    def max_price(self) -> float | None:
         g_client = service_account(ROOT_PATH.joinpath(os.environ["KEYS_PATH"]))
 
         res = g_client.http_client.values_get(
@@ -122,9 +122,7 @@ class Product(ColSheetModel):
         if max_price:
             return float(max_price[0][0])
 
-        raise SheetError(
-            f"{self.IDSHEET_MAX}->{self.SHEET_MAX}->{self.CELL_MAX} is None"
-        )
+        return None
 
     def stock(self) -> int:
         g_client = service_account(ROOT_PATH.joinpath(os.environ["KEYS_PATH"]))

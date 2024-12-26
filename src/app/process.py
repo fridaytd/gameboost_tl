@@ -10,39 +10,30 @@ from app.gameboost_client import GameboostClient
 from app.decorators import retry_on_fail
 
 
-def is_change_price(
+def find_offer_min_price(
     crwl_offers: list[Offer],
-) -> bool:
-    # If our name in crawled offer do not need to change price
-    sorted_crwl_offers = sorted(crwl_offers)
-    min_crwl_offer = sorted_crwl_offers[0]
-    if os.environ["MY_SELLER_NAME"] in min_crwl_offer.seller:
-        return False
+    blacklist: list[str],
+) -> tuple[Offer | None, Offer | None]:
+    my_seller_offer = None
+    other_offer_min_price = None
+    for crwl_offer in crwl_offers:
+        if crwl_offer.seller == os.environ["MY_SELLER_NAME"]:
+            my_seller_offer = crwl_offer
 
-    return True
+        elif crwl_offer.seller not in blacklist:
+            if other_offer_min_price is None:
+                other_offer_min_price = crwl_offer
+            elif crwl_offer.price < other_offer_min_price.price:
+                other_offer_min_price = crwl_offer
 
-
-def filter_crwl_offer(
-    product: Product,
-    crwl_offers: list[Offer],
-) -> list[Offer]:
-    result_offers: list[Offer] = []
-    blacklist = product.blacklits()
-    for offer in crwl_offers:
-        if offer.seller not in blacklist:
-            result_offers.append(offer)
-
-    return result_offers
+    return my_seller_offer, other_offer_min_price
 
 
 def calculate_price_change(
     product: Product,
-    crwl_offers: list[Offer],
+    other_offer_min_price: Offer,
 ) -> CurrencyProcessResult:
-    filtered_crwl_offers = filter_crwl_offer(product, crwl_offers)
-    sorted_filtered_crwl_offers = sorted(filtered_crwl_offers)
-    min_price_crwl_offer = sorted_filtered_crwl_offers[0]
-    compare_price = min_price_crwl_offer.price
+    compare_price = other_offer_min_price.price
 
     min_price = product.min_price()
     max_price = product.max_price()
@@ -52,7 +43,7 @@ def calculate_price_change(
     if compare_price <= min_price:
         final_price = min_price
 
-    elif compare_price >= max_price:
+    elif max_price is not None and compare_price >= max_price:
         final_price = max_price
 
     else:
@@ -68,8 +59,7 @@ def calculate_price_change(
         min_price=min_price,
         max_price=max_price,
         compare_price=compare_price,
-        seller=min_price_crwl_offer.seller,
-        top_seller=sorted_filtered_crwl_offers[:2],
+        seller=other_offer_min_price.seller,
     )
 
 
@@ -117,30 +107,56 @@ def currency_process(
         "https://gameboost", "https://api.gameboost"
     )
     crwl_offers = currencies_extract(sb, url_product_compare)
-    if not is_change_price(crwl_offers):
-        logger.info(
-            f"No need to change price because {os.environ["MY_SELLER_NAME"]} has smallest price already"
-        )
-        logger.info("Sheet updating")
-        now = datetime.now()
-        product.Last_update = last_update_message(now)
-        product.Note = f"{last_update_message(now)}: No need to change price because {os.environ["MY_SELLER_NAME"]} has smallest price already"
-        product.update()
+    blacklist = product.blacklits()
 
-        return None
-
-    logger.info(f"Caculating price change for {product.Product_name}")
-    currency_price_change_result = calculate_price_change(product, crwl_offers)
-
-    logger.info(f"Price updating for {product.Product_name}")
-    currency_price_update(product, currency_price_change_result)
-
-    logger.info("Sheet updating")
+    my_seller_offer, other_offer_min_price = find_offer_min_price(
+        crwl_offers, blacklist
+    )
     now = datetime.now()
-    product.Last_update = last_update_message(now)
-    product.Note = note_message(now, currency_price_change_result)
-    product.update()
-    return currency_price_change_result
+    if other_offer_min_price is None:
+        if my_seller_offer is None:
+            note_message_var = f"{last_update_message(now)}: No need to change price because nothing to compare"
+            logger.info(note_message_var)
+            product.Last_update = last_update_message(now)
+            product.Note = note_message_var
+            logger.info("Sheet updating")
+            product.update()
+            return
+        else:
+            note_message_var = f"{last_update_message(now)}: No need to change price because nothing to compare. Current price = {my_seller_offer.price}"
+            logger.info(note_message_var)
+            product.Last_update = last_update_message(now)
+            product.Note = note_message_var
+            logger.info("Sheet updating")
+            product.update()
+            return
+    else:
+        if (
+            my_seller_offer is not None
+            and my_seller_offer.price < other_offer_min_price.price
+            and my_seller_offer.price
+            >= other_offer_min_price.price - product.DONGIAGIAM_MAX
+        ):
+            note_message_var = f"{last_update_message(now)}: No need to change price because {os.environ["MY_SELLER_NAME"]} has smallest price already: Current price = {my_seller_offer.price}"
+            logger.info(note_message_var)
+            product.Last_update = last_update_message(now)
+            product.Note = note_message_var
+            logger.info("Sheet updating")
+            product.update()
+        else:
+            logger.info(f"Caculating price change for {product.Product_name}")
+            currency_price_change_result = calculate_price_change(
+                product, other_offer_min_price
+            )
+
+            logger.info(f"Price updating for {product.Product_name}")
+            currency_price_update(product, currency_price_change_result)
+
+            logger.info("Sheet updating")
+            product.Last_update = last_update_message(now)
+            product.Note = note_message(now, currency_price_change_result)
+            product.update()
+            return currency_price_change_result
 
 
 @retry_on_fail(max_retries=2)
