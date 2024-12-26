@@ -79,6 +79,13 @@ def currency_price_update(
         "min_quantity": onl_offer["attributes"]["min_quantity"],
         "delivery_time": onl_offer["attributes"]["delivery_time"],
     }
+    if onl_offer["attributes"].get("data", None) is not None:
+        payload.update(
+            {
+                "currency_data": onl_offer["attributes"]["data"],
+            }
+        )
+
     client.update_currency_offer(product.Product_link, payload)
 
 
