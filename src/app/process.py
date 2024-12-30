@@ -57,7 +57,7 @@ def calculate_price_change(
             final_price = product_min_price
 
         return CurrencyProcessResult(
-            final_price=final_price,
+            final_price=round(final_price, product.DONGIA_LAMTRON),
             stock=product.stock(),
             min_price=product_min_price,
             max_price=product_max_price,
@@ -82,7 +82,7 @@ def calculate_price_change(
             )
 
         return CurrencyProcessResult(
-            final_price=final_price,
+            final_price=round(final_price, product.DONGIA_LAMTRON),
             stock=product.stock(),
             min_price=product_min_price,
             max_price=product_max_price,
