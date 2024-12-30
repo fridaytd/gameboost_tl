@@ -50,6 +50,8 @@ class ColSheetModel(BaseModel):
         count = 0
         for k, _ in mapping_dict.items():
             model_dict[k] = query_results[count].first()
+            if isinstance(model_dict[k], str):
+                model_dict[k] = model_dict[k].strip()
             count += 1
         return cls.model_validate(model_dict)
 
