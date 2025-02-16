@@ -138,9 +138,10 @@ def currency_process(
 ) -> CurrencyProcessResult | None:
     logger.info("Currency Proccess")
     logger.info(f"Crawling at: {product.Product_compare}")
-    url_product_compare = product.Product_compare.replace(
-        "https://gameboost", "https://api.gameboost"
-    )
+    # url_product_compare = product.Product_compare.replace(
+    #     "https://gameboost", "https://api.gameboost"
+    # )
+    url_product_compare = product.Product_compare
     crwl_offers = currencies_extract(sb, url_product_compare)
     blacklist = product.blacklits()
 
@@ -177,7 +178,7 @@ def currency_process(
             and my_seller_offer.price
             >= other_offer_min_price.price - product.DONGIAGIAM_MAX
         ):
-            note_message_var = f"{last_update_message(now)}: Không cần cập nhật giá vì {os.environ["MY_SELLER_NAME"]} Đã có giá nhỏ nhất: Price = {my_seller_offer.price}; Stock = {product.stock()}; Pricemin = {product_min_price}, Pricemax = {product_max_price}, GiaSosanh = {other_offer_min_price.price} - Seller: {other_offer_min_price.seller}"
+            note_message_var = f"{last_update_message(now)}: Không cần cập nhật giá vì {os.environ['MY_SELLER_NAME']} Đã có giá nhỏ nhất: Price = {my_seller_offer.price}; Stock = {product.stock()}; Pricemin = {product_min_price}, Pricemax = {product_max_price}, GiaSosanh = {other_offer_min_price.price} - Seller: {other_offer_min_price.seller}"
             logger.info(note_message_var)
             product.Last_update = last_update_message(now)
             product.Note = note_message_var

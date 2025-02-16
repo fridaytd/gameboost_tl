@@ -81,6 +81,8 @@ def main(sb):
         time.sleep(2)
 
 
-with SB(uc=True, headless=True) as sb:
+with SB(uc=True, headless=True, disable_js=True) as sb:
+    sb.activate_cdp_mode("https://google.com")
+
     while True:
         main(sb)

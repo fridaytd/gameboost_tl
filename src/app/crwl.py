@@ -10,7 +10,7 @@ def get_soup(
     sb,
     url: str,
 ) -> BeautifulSoup:
-    sb.activate_cdp_mode(url)
+    sb.get(url)
     # sb.cdp.sleep(random.uniform(0.5, 0.9))
     soup = BeautifulSoup(sb.cdp.get_page_source(), "html.parser")
     sb.cdp.sleep(random.uniform(0.3, 0.7))
