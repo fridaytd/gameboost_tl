@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 import time
 from seleniumbase import SB
@@ -40,6 +41,8 @@ def main(sb):
             product = Product.get(worksheet, index)
 
             run(sb, product)
+            logger.info(f"Sleep for {product.Relax_time}s")
+            time.sleep(product.Relax_time)
         except ValidationError as e:
             logger.error(f"VALIDATION ERROR AT ROW: {index}")
             logger.error(e.errors())
@@ -78,7 +81,15 @@ def main(sb):
                 time.sleep(10)
             logger.exception(e, exc_info=True)
 
-        time.sleep(2)
+    logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
+    time.sleep(
+        int(
+            os.getenv(
+                "RELAX_TIME_EACH_ROUND",
+                "10",
+            )
+        )
+    )
 
 
 with SB(uc=True, headless=True, disable_js=True) as sb:
