@@ -9,6 +9,7 @@ def retry_on_fail(max_retries: int = 3, sleep_interval: float = 0.5):
                 try:
                     return func(*args, **kwagrs)
                 except Exception as e:
+                    logger.exception(e)
                     if i == max_retries:
                         raise e
                     logger.info(

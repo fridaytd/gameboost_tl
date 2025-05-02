@@ -21,7 +21,7 @@ class GameboostClient:
         res = requests.get(url=path, headers=headers)
         res.raise_for_status()
 
-        return res.json()["data"]
+        return res.json()
 
     def update_currency_offer(
         self,

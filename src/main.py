@@ -44,8 +44,8 @@ def main(sb):
             logger.info(f"Sleep for {product.Relax_time}s")
             time.sleep(product.Relax_time)
         except ValidationError as e:
-            logger.error(f"VALIDATION ERROR AT ROW: {index}")
-            logger.error(e.errors())
+            logger.exception(f"VALIDATION ERROR AT ROW: {index}")
+            logger.exception(e.errors())
             try:
                 now = datetime.now()
                 worksheet.batch_update(
@@ -61,11 +61,11 @@ def main(sb):
                     ]
                 )
             except Exception as e:
-                logger.error(e)
+                logger.exception(e)
                 time.sleep(10)
 
         except Exception as e:
-            logger.error(f"FAILED AT ROW: {index}")
+            logger.exception(f"FAILED AT ROW: {index}")
             try:
                 now = datetime.now()
                 worksheet.batch_update(
@@ -77,7 +77,7 @@ def main(sb):
                     ]
                 )
             except Exception as e1:
-                logger.error(e1)
+                logger.exception(e1)
                 time.sleep(10)
             logger.exception(e, exc_info=True)
 
