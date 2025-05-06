@@ -80,6 +80,7 @@ def main(sb):
                 logger.exception(e1)
                 time.sleep(10)
             logger.exception(e, exc_info=True)
+            time.sleep(20)
 
     logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
     time.sleep(
