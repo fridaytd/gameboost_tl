@@ -10,6 +10,22 @@ from app.gameboost_client import GameboostClient
 from app.decorators import retry_on_fail
 
 
+def find_lower_price_offers(
+    offers: list[Offer],
+    compare_price: float,
+) -> list[Offer]:
+    lower_price_offer: list[Offer] = []
+
+    for offer in offers:
+        if offer.seller == os.environ["MY_SELLER_NAME"]:
+            continue
+
+        if offer.price < compare_price:
+            lower_price_offer.append(offer)
+
+    return lower_price_offer
+
+
 def find_offer_min_price(
     crwl_offers: list[Offer],
     blacklist: list[str],
@@ -125,9 +141,13 @@ def last_update_message(
 
 
 def note_message(
-    now: datetime, currency_price_change_result: CurrencyProcessResult
+    now: datetime,
+    currency_price_change_result: CurrencyProcessResult,
+    lower_price_offers: list[Offer],
 ) -> str:
-    message = f"""{last_update_message(now)}:Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}, GiaSosanh = {currency_price_change_result.compare_price} - Seller: {currency_price_change_result.seller}"""
+    message = f"""{last_update_message(now)}:Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}, GiaSosanh = {currency_price_change_result.compare_price} - Seller: {currency_price_change_result.seller}
+Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price}" for offer in lower_price_offers])}
+"""
 
     return message
 
@@ -162,7 +182,13 @@ def currency_process(
         logger.info(f"Price updating for {product.Product_name}")
         currency_price_update(product, currency_price_change_result)
 
-        note_message_var = f"""{last_update_message(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}"""
+        lower_price_offers = find_lower_price_offers(
+            crwl_offers, currency_price_change_result.final_price
+        )
+
+        note_message_var = f"""{last_update_message(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}
+Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price}" for offer in lower_price_offers])}
+"""
 
         logger.info("Sheet updating")
         product.Last_update = last_update_message(now)
@@ -178,7 +204,12 @@ def currency_process(
             and my_seller_offer.price
             >= other_offer_min_price.price - product.DONGIAGIAM_MAX
         ):
-            note_message_var = f"{last_update_message(now)}: Không cần cập nhật giá vì {os.environ['MY_SELLER_NAME']} Đã có giá nhỏ nhất: Price = {my_seller_offer.price}; Stock = {product.stock()}; Pricemin = {product_min_price}, Pricemax = {product_max_price}, GiaSosanh = {other_offer_min_price.price} - Seller: {other_offer_min_price.seller}"
+            lower_price_offers = find_lower_price_offers(
+                crwl_offers, my_seller_offer.price
+            )
+            note_message_var = f"""{last_update_message(now)}: Giá đã min: Price = {my_seller_offer.price}; Stock = {product.stock()}; Pricemin = {product_min_price}, Pricemax = {product_max_price}, GiaSosanh = {other_offer_min_price.price} - Seller: {other_offer_min_price.seller}
+Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price}" for offer in lower_price_offers])}            
+"""
             logger.info(note_message_var)
             product.Last_update = last_update_message(now)
             product.Note = note_message_var
@@ -193,9 +224,15 @@ def currency_process(
             logger.info(f"Price updating for {product.Product_name}")
             currency_price_update(product, currency_price_change_result)
 
+            lower_price_offers = find_lower_price_offers(
+                crwl_offers, currency_price_change_result.final_price
+            )
+
             logger.info("Sheet updating")
             product.Last_update = last_update_message(now)
-            product.Note = note_message(now, currency_price_change_result)
+            product.Note = note_message(
+                now, currency_price_change_result, lower_price_offers
+            )
             product.update()
             return currency_price_change_result
 
