@@ -145,8 +145,8 @@ def note_message(
     currency_price_change_result: CurrencyProcessResult,
     lower_price_offers: list[Offer],
 ) -> str:
-    message = f"""{last_update_message(now)}:Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}, GiaSosanh = {currency_price_change_result.compare_price} - Seller: {currency_price_change_result.seller}
-Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price}" for offer in lower_price_offers])}
+    message = f"""{last_update_message(now)}:Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price:f}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price:f}, Pricemax = {currency_price_change_result.max_price:f}, GiaSosanh = {currency_price_change_result.compare_price:f} - Seller: {currency_price_change_result.seller}
+Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price:f}" for offer in lower_price_offers])}
 """
 
     return message
@@ -186,7 +186,7 @@ def currency_process(
             crwl_offers, currency_price_change_result.final_price
         )
 
-        note_message_var = f"""{last_update_message(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price}, Pricemax = {currency_price_change_result.max_price}
+        note_message_var = f"""{last_update_message(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {currency_price_change_result.final_price:f}; Stock = {currency_price_change_result.stock}; Pricemin = {currency_price_change_result.min_price:f}, Pricemax = {currency_price_change_result.max_price:f}
 Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price}" for offer in lower_price_offers])}
 """
 
@@ -207,8 +207,8 @@ Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price}" for o
             lower_price_offers = find_lower_price_offers(
                 crwl_offers, my_seller_offer.price
             )
-            note_message_var = f"""{last_update_message(now)}: Giá đã min: Price = {my_seller_offer.price}; Stock = {product.stock()}; Pricemin = {product_min_price}, Pricemax = {product_max_price}, GiaSosanh = {other_offer_min_price.price} - Seller: {other_offer_min_price.seller}
-Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price}" for offer in lower_price_offers])}            
+            note_message_var = f"""{last_update_message(now)}: Giá đã min: Price = {my_seller_offer.price:f}; Stock = {product.stock()}; Pricemin = {product_min_price:f}, Pricemax = {product_max_price:f}, GiaSosanh = {other_offer_min_price.price:f} - Seller: {other_offer_min_price.seller}
+Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price:f}" for offer in lower_price_offers])}            
 """
             logger.info(note_message_var)
             product.Last_update = last_update_message(now)

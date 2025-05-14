@@ -28,6 +28,8 @@ class GameboostClient:
         currency_offer_id: str,
         payload: dict,
     ) -> dict:
+        payload["price"] = f"{payload['price']:f}"
+
         path: str = f"{self.base_url}/currency-offers/{currency_offer_id}"
 
         headers = {
