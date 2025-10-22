@@ -5,11 +5,11 @@ from seleniumbase import SB
 from gspread.worksheet import Worksheet
 
 
-from app.utils.logger import logger
-from app.utils.gsheet import worksheet
-from app.models.gsheet_models import Product
-from app.process import run, last_update_message
+from app import logger, config
+from app.sheet.models import RowModel
 from pydantic import ValidationError
+from app.shared.utils import formated_datetime
+from app.processes.main_process import process
 
 
 def get_run_indexes(sheet: Worksheet) -> list[int]:
@@ -33,14 +33,21 @@ def get_run_indexes(sheet: Worksheet) -> list[int]:
 
 def main(sb):
     logger.info("Start running")
-    run_indexes = get_run_indexes(worksheet)
+
+    run_indexes = RowModel.get_run_indexes(
+        sheet_id=config.SHEET_ID, sheet_name=config.SHEET_NAME, col_index=1
+    )
     logger.info(f"Run index: {run_indexes}")
     for index in run_indexes:
         logger.info(f"INDEX (ROW): {index}")
         try:
-            product = Product.get(worksheet, index)
+            product = RowModel.get(
+                sheet_id=config.SHEET_ID,
+                sheet_name=config.SHEET_NAME,
+                index=index,
+            )
 
-            run(sb, product)
+            process(sb, product)
             logger.info(f"Sleep for {product.Relax_time}s")
             time.sleep(product.Relax_time)
         except ValidationError as e:
@@ -48,13 +55,16 @@ def main(sb):
             logger.exception(e.errors())
             try:
                 now = datetime.now()
+                worksheet = RowModel.get_worksheet(
+                    sheet_id=config.SHEET_ID, sheet_name=config.SHEET_NAME
+                )
                 worksheet.batch_update(
                     [
                         {
                             "range": f"C{index}",
                             "values": [
                                 [
-                                    f"{last_update_message(now)}: VALIDATION ERROR AT ROW: {index}"
+                                    f"{formated_datetime(now)}: VALIDATION ERROR AT ROW: {index}"
                                 ]
                             ],
                         }
@@ -68,11 +78,14 @@ def main(sb):
             logger.exception(f"FAILED AT ROW: {index}")
             try:
                 now = datetime.now()
+                worksheet = RowModel.get_worksheet(
+                    sheet_id=config.SHEET_ID, sheet_name=config.SHEET_NAME
+                )
                 worksheet.batch_update(
                     [
                         {
                             "range": f"C{index}",
-                            "values": [[f"{last_update_message(now)}: FAILED: {e}"]],
+                            "values": [[f"{formated_datetime(now)}: FAILED: {e}"]],
                         }
                     ]
                 )

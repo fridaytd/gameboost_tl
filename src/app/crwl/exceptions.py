@@ -1,0 +1,2 @@
+class CrwlError(Exception):
+    pass

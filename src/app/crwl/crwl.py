@@ -1,9 +1,11 @@
 import json
 from bs4 import BeautifulSoup
 import random
+
 from .exceptions import CrwlError
-from .models.crwl_models import Offer
-from .decorators import retry_on_fail
+from .models import Offer
+
+from app.shared.decorators import retry_on_fail
 
 
 def get_soup(
@@ -30,7 +32,7 @@ def currencies_extract(
     page_data = app_tag.attrs.get("data-page", None)
     if not page_data:
         raise CrwlError("Page data not found!!!")
-    page_data = json.loads(page_data)
+    page_data = json.loads(page_data)  # type: ignore
     props = page_data.get("props", None)
     if not props:
         raise CrwlError("Props not found!!!")
@@ -50,6 +52,8 @@ def currencies_extract(
         Offer(
             seller=currency["seller"]["username"],
             price=currency["price"]["amount"],
+            title=currency["title"],
+            id=currency.get("id", None),
         )
         for currency in list_currencies_dict
     ]
@@ -67,7 +71,7 @@ def items_extract(
     page_data = app_tag.attrs.get("data-page", None)
     if not page_data:
         raise CrwlError("Page data not found!!!")
-    page_data = json.loads(page_data)
+    page_data = json.loads(page_data)  # type: ignore
     props = page_data.get("props", None)
     if not props:
         raise CrwlError("Props not found!!!")
@@ -85,6 +89,8 @@ def items_extract(
         Offer(
             seller=item["seller"]["username"],
             price=item["price"]["value"],
+            title=item["title"],
+            id=item.get("id", None),
         )
         for item in list_items_dict
     ]
@@ -102,7 +108,7 @@ def accounts_extract(
     page_data = app_tag.attrs.get("data-page", None)
     if not page_data:
         raise CrwlError("Page data not found!!!")
-    page_data = json.loads(page_data)
+    page_data = json.loads(page_data)  # type: ignore
     props = page_data.get("props", None)
     if not props:
         raise CrwlError("Props not found!!!")
@@ -120,6 +126,8 @@ def accounts_extract(
         Offer(
             seller=item["seller"]["username"],
             price=item["price"]["value"],
+            title=item["title"],
+            id=item.get("id", None),
         )
         for item in list_accounts_dict
     ]

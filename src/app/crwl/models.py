@@ -4,6 +4,8 @@ from pydantic import BaseModel
 class Offer(BaseModel):
     seller: str
     price: float
+    title: str
+    id: int | str | None = None
 
     def __gt__(self, other: "Offer") -> bool:
         return self.price > other.price
