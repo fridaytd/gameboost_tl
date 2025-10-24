@@ -42,7 +42,7 @@ def update_multiple_accounts(
 def account_process(sb, run_row: RowModel):
     # If not compare product, update by min price and return
 
-    account_offer_ids = [id.strip() for id in run_row.Product_link.split(",")]
+    account_offer_ids = [id.strip() for id in run_row.Product_link.split(";")]
 
     if run_row.Check_product_compare != "1":
         logger.info(
