@@ -550,7 +550,7 @@ class RowModel(ColSheetModel):
         if self.INCLUDE_KEYWORDS.strip() == "":
             return None
 
-        return [keyword.strip() for keyword in self.INCLUDE_KEYWORDS.split(",")]
+        return [keyword.strip() for keyword in self.INCLUDE_KEYWORDS.split(";")]
 
     def exclude_keywords(self) -> list[str] | None:
         if self.EXCLUDE_KEYWORDS is None:
@@ -559,7 +559,7 @@ class RowModel(ColSheetModel):
         if self.EXCLUDE_KEYWORDS.strip() == "":
             return None
 
-        return [keyword.strip() for keyword in self.EXCLUDE_KEYWORDS.split(",")]
+        return [keyword.strip() for keyword in self.EXCLUDE_KEYWORDS.split(";")]
 
     @classmethod
     @retry_on_fail(max_retries=5, sleep_interval=10)
