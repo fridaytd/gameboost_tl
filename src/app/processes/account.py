@@ -106,16 +106,18 @@ def account_process(sb, run_row: RowModel):
     logger.info(f"Crawled offers: {[offer.model_dump() for offer in crwl_offers]}")
 
     if len(valid_offers) == 0 or offer_min_price is None:
+        target_price = max_price if max_price else min_price
+
         # No valid offers, update to min price
         update_multiple_accounts(
             account_offer_ids=account_offer_ids,
-            prices=min_price,
+            prices=target_price,
         )
 
         now = datetime.now()
 
         lower_price_offers = find_lower_price_offers(crwl_offers, min_price)
-        run_row.Note = f"{formated_datetime(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {min_price:f}; Pricemin = {min_price:f}, Pricemax = {max_price:f}\nSeller có giá thấp hơn: {', '.join([f'{offer.seller} - {offer.price}' for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}"
+        run_row.Note = f"{formated_datetime(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {target_price:f}; Pricemin = {min_price:f}, Pricemax = {max_price:f}\nSeller có giá thấp hơn: {', '.join([f'{offer.seller} - {offer.price}' for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}"
         run_row.Last_update = formated_datetime(now)
         run_row.update()
         return
