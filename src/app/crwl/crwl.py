@@ -51,7 +51,7 @@ def currencies_extract(
     return [
         Offer(
             seller=currency["seller"]["username"],
-            price=currency["price"]["amount"],
+            price=currency["local_price"]["amount"],
             title=currency["title"],
             id=currency.get("id", None),
         )
@@ -88,7 +88,7 @@ def items_extract(
     return [
         Offer(
             seller=item["seller"]["username"],
-            price=item["price"]["value"],
+            price=item["local_price"]["value"],
             title=item["title"],
             id=item.get("id", None),
         )
@@ -125,7 +125,7 @@ def accounts_extract(
     return [
         Offer(
             seller=item["seller"]["username"],
-            price=item["price"]["value"],
+            price=item["local_price"]["value"],
             title=item["title"],
             id=item.get("id", None),
         )

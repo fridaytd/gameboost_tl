@@ -21,3 +21,7 @@ settings.env
 
 # keys
 keys.json
+
+# data
+**/data/*
+!**/data/.gitkeep

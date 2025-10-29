@@ -18,3 +18,8 @@ class Offer(BaseModel):
 
     def __le__(self, other: "Offer") -> bool:
         return self.price <= other.price
+
+
+class ExchangeRate(BaseModel):
+    usd_to_eur: float
+    eur_to_usd: float

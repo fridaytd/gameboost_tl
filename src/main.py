@@ -6,10 +6,13 @@ from gspread.worksheet import Worksheet
 
 
 from app import logger, config
+from app.shared.paths import SRC_PATH
 from app.sheet.models import RowModel
 from pydantic import ValidationError
 from app.shared.utils import formated_datetime
 from app.processes.main_process import process
+from app.shared.decorators import retry_on_fail
+from app.crwl.crwl import currencies_extract
 
 
 def get_run_indexes(sheet: Worksheet) -> list[int]:
@@ -106,8 +109,42 @@ def main(sb):
     )
 
 
-with SB(uc=True, headless=True, disable_js=True) as sb:
-    sb.activate_cdp_mode("https://google.com")
+@retry_on_fail(max_retries=10, sleep_interval=1)
+def set_cookies():
+    with SB(
+        uc=True,
+        headless=True,
+        disable_js=False,
+    ) as sb:
+        sb.activate_cdp_mode("https://gameboost.com")
+        sb.cdp.sleep(2)
+        sb.cdp.wait_for_text("Change language and currency")
+        logger.info("Click change language and currency")
+        sb.cdp.click('span:contains("Change language and currency")')
+        sb.cdp.sleep(0.5)
+        logger.info("Click currency")
+        sb.cdp.mouse_click('label:contains("Currency") ~ button')
+        sb.cdp.sleep(0.5)
+        logger.info("Click Euro")
+        sb.cdp.mouse_click('div[aria-selected] span:contains("Euro")')
+        sb.cdp.sleep(0.5)
+        logger.info("Click Save Changes")
+        sb.cdp.find_element_by_text("Save Changes").click()
+        sb.cdp.sleep(2)
+        sb.cdp.save_cookies(SRC_PATH / "data" / "cookies.txt")
 
-    while True:
-        main(sb)
+
+if __name__ == "__main__":
+    logger.info("=== STARTING SCRIPT ===")
+
+    logger.info("Setting cookies...")
+    set_cookies()
+    logger.info("Cookies set.")
+
+    with SB(uc=True, headless=True, disable_js=True) as sb:
+        sb.activate_cdp_mode("https://google.com")
+
+        sb.cdp.load_cookies(SRC_PATH / "data" / "cookies.txt")
+
+        while True:
+            main(sb)

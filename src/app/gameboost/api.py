@@ -152,5 +152,19 @@ class GameboostClient:
 
         return res.json()
 
+    def get_balance(self) -> dict:
+        path: str = f"{self.base_url}/payments/balance"
+
+        headers: dict = {"Authorization": f"Bearer {self.api_key}"}
+
+        res = requests.get(url=path, headers=headers)
+        try:
+            res.raise_for_status()
+        except requests.HTTPError as e:
+            logger.exception(f"Error getting balance: {res.text}")
+            raise e
+
+        return res.json()
+
 
 gameboost_api_client = GameboostClient()
