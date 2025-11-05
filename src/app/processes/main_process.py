@@ -13,6 +13,7 @@ def process(
 ) -> None:
     """Process a single row from the spreadsheet."""
     logger.info(f"{run_row.Product_name} is being processed")
+    logger.info(f'Category: {run_row.Category}')
     if run_row.Category == OfferType.Currency.value:
         return currency_process(sb, run_row)
     elif run_row.Category == OfferType.Item.value:

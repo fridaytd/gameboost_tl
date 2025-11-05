@@ -20,6 +20,9 @@ class Config(BaseModel):
     # Relax time each round in second
     RELAX_TIME_EACH_ROUND: int
 
+    #Thread number
+    THREAD_NUMBER: int
+
     @staticmethod
     def from_env(dotenv_path: str = "settings.env") -> "Config":
         load_dotenv(dotenv_path)

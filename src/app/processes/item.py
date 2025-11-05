@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def item_process(sb, run_row: RowModel):
     # If not compare product, update by min price and return
-    if run_row.Check_product_compare != "1":
+    if run_row.Check_product_compare == "0":
         logger.info(
             f"{run_row.Product_name} is skipped due to Check_product_compare != 1"
         )
@@ -77,7 +77,6 @@ def item_process(sb, run_row: RowModel):
     max_price = run_row.max_price()
     blacklist = run_row.blacklist()
     stock = run_row.stock()
-    # my_currency_offer = gameboost_api_client.get_currency_offer(run_row.Product_link)
 
     valid_offers = filter_valid_offers(
         crwl_offers,
@@ -112,12 +111,20 @@ def item_process(sb, run_row: RowModel):
         run_row.update()
         return
 
+    my_item_offer = gameboost_api_client.get_item_offer(run_row.Product_link)
+    current_price = my_item_offer.data.price if my_item_offer else min_price
     # Calculate new price
-    new_price = calculate_price_change(
-        run_row,
-        offer_min_price.price,
-        min_price,
-    )
+    if run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
+        run_row.Note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
+        run_row.Last_update = formated_datetime(now)
+        run_row.update()
+        return
+    else:
+        new_price = calculate_price_change(
+            run_row,
+            offer_min_price.price,
+            min_price,
+        )
 
     # Update price if changed
     res = gameboost_api_client.update_item_offer(
