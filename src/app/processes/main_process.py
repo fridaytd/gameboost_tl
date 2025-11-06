@@ -1,6 +1,6 @@
 from app.sheet.models import RowModel
 from app.shared.enums import OfferType
-from app import config, logger
+from app import logger
 
 from .currency import currency_process
 from .item import item_process

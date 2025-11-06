@@ -1,7 +1,7 @@
 import random
 from pydantic import BaseModel
 from app.crwl.models import Offer
-from app.sheet.models import RowModel
+from app.service.data_cache import CachedRow
 
 
 class CurrencyProcessResult(BaseModel):
@@ -82,22 +82,22 @@ def find_lower_price_offers(
 
 
 def calculate_price_change(
-    run_row: RowModel,
+    cached_row: CachedRow,
     compare_price: float,
     min_price: float,
 ) -> float:
     min_final_price = (
         min_price
-        if compare_price - run_row.DONGIAGIAM_MAX < min_price
-        else compare_price - run_row.DONGIAGIAM_MAX
+        if compare_price - cached_row.DONGIAGIAM_MAX < min_price
+        else compare_price - cached_row.DONGIAGIAM_MAX
     )
 
     max_final_price = (
         min_price
-        if compare_price - run_row.DONGIAGIAM_MIN <= min_price
-        else compare_price - run_row.DONGIAGIAM_MIN
+        if compare_price - cached_row.DONGIAGIAM_MIN <= min_price
+        else compare_price - cached_row.DONGIAGIAM_MIN
     )
 
     return round(
-        random.uniform(min_final_price, max_final_price), run_row.DONGIA_LAMTRON
+        random.uniform(min_final_price, max_final_price), cached_row.DONGIA_LAMTRON
     )
