@@ -87,40 +87,40 @@ def main():
     
     cache_file = SRC_PATH / "data" / "cache.csv"
     initialize_cache(cache_file, config.SHEET_ID, config.SHEET_NAME, run_indexes)
-    
-    # index_queue = Queue() 
-    # cookies_path = str(SRC_PATH / "data" / "cookies.txt")
-    
-    # for index in run_indexes:
-    #     index_queue.put(index)
 
-    # threads = []
-    # for i in range(thread_number):
-    #     t = Thread(
-    #         target=worker, 
-    #         args=(index_queue, cookies_path, i+1),
-    #         daemon=True,
-    #         name=f"Worker-{i+1}"
-    #     )
-    #     t.start()
-    #     threads.append(t)
-    #     logger.info(f"Started worker thread {i+1}/{thread_number}")
+    index_queue = Queue() 
+    cookies_path = str(SRC_PATH / "data" / "cookies.txt")
+    
+    for index in run_indexes:
+        index_queue.put(index)
 
-    # index_queue.join()
-    
-    # for _ in range(thread_number):
-    #     index_queue.put(None)
-    
-    # for t in threads:
-    #     t.join(timeout=60)
+    threads = []
+    for i in range(thread_number):
+        t = Thread(
+            target=worker, 
+            args=(index_queue, cookies_path, i+1),
+            daemon=True,
+            name=f"Worker-{i+1}"
+        )
+        t.start()
+        threads.append(t)
+        logger.info(f"Started worker thread {i+1}/{thread_number}")
 
-    # logger.info("Flushing updates to Google Sheet...")
-    # cache = get_cache()
-    # cache.flush_updates_to_sheet(config.SHEET_ID, config.SHEET_NAME)
+    index_queue.join()
     
-    # logger.info(f"Completed processing {len(run_indexes)} rows")
-    # logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
-    # time.sleep(int(os.getenv("RELAX_TIME_EACH_ROUND", "10")))
+    for _ in range(thread_number):
+        index_queue.put(None)
+    
+    for t in threads:
+        t.join(timeout=60)
+
+    logger.info("Flushing updates to Google Sheet...")
+    cache = get_cache()
+    cache.flush_updates_to_sheet(config.SHEET_ID, config.SHEET_NAME)
+    
+    logger.info(f"Completed processing {len(run_indexes)} rows")
+    logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
+    time.sleep(int(os.getenv("RELAX_TIME_EACH_ROUND", "10")))
 
 
 @retry_on_fail(max_retries=10, sleep_interval=1)
@@ -155,5 +155,5 @@ if __name__ == "__main__":
     # set_cookies()
     logger.info("Cookies set.")
 
-    while True:
-        main()
+    main()
+    logger.info("=== SCRIPT COMPLETED ===")
