@@ -88,37 +88,49 @@ def main():
     cache_file = SRC_PATH / "data" / "cache.csv"
     initialize_cache(cache_file, config.SHEET_ID, config.SHEET_NAME, run_indexes)
 
-    index_queue = Queue() 
     cookies_path = str(SRC_PATH / "data" / "cookies.txt")
     
-    for index in run_indexes:
-        index_queue.put(index)
-
-    threads = []
-    for i in range(thread_number):
-        t = Thread(
-            target=worker, 
-            args=(index_queue, cookies_path, i+1),
-            daemon=True,
-            name=f"Worker-{i+1}"
-        )
-        t.start()
-        threads.append(t)
-        logger.info(f"Started worker thread {i+1}/{thread_number}")
-
-    index_queue.join()
+    batches = [run_indexes[i:i + thread_number] for i in range(0, len(run_indexes), thread_number)]
     
-    for _ in range(thread_number):
-        index_queue.put(None)
+    total_batches = len(batches)
+    logger.info(f"Total batches: {total_batches}")
     
-    for t in threads:
-        t.join(timeout=60)
+    for batch_idx, batch in enumerate(batches, 1):
+        logger.info(f"\n{'='*50}")
+        logger.info(f"Processing batch {batch_idx}/{total_batches}: {batch}")
+        logger.info(f"{'='*50}\n")
+        
+        index_queue = Queue()
+        
+        for index in batch:
+            index_queue.put(index)
 
-    logger.info("Flushing updates to Google Sheet...")
-    cache = get_cache()
-    cache.flush_updates_to_sheet(config.SHEET_ID, config.SHEET_NAME)
-    
-    logger.info(f"Completed processing {len(run_indexes)} rows")
+        threads = []
+        for i in range(thread_number):
+            t = Thread(
+                target=worker, 
+                args=(index_queue, cookies_path, i+1),
+                daemon=True,
+                name=f"Worker-{i+1}"
+            )
+            t.start()
+            threads.append(t)
+            logger.info(f"Started worker thread {i+1}/{thread_number}")
+
+        index_queue.join()
+        
+        for _ in range(thread_number):
+            index_queue.put(None)
+        
+        for t in threads:
+            t.join(timeout=60)
+
+        logger.info(f"Flushing batch {batch_idx}/{total_batches} to Google Sheet...")
+        cache = get_cache()
+        cache.flush_updates_to_sheet(config.SHEET_ID, config.SHEET_NAME)
+        logger.info(f"Batch {batch_idx}/{total_batches} flushed successfully")
+
+    logger.info(f"\nCompleted processing {len(run_indexes)} rows in {total_batches} batches")
     logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
     time.sleep(int(os.getenv("RELAX_TIME_EACH_ROUND", "10")))
 
@@ -152,8 +164,8 @@ if __name__ == "__main__":
     logger.info("=== STARTING SCRIPT ===")
 
     logger.info("Setting cookies...")
-    # set_cookies()
+    set_cookies()
     logger.info("Cookies set.")
-
-    main()
-    logger.info("=== SCRIPT COMPLETED ===")
+    while True:
+        main()
+        logger.info("=== SCRIPT COMPLETED ===")
