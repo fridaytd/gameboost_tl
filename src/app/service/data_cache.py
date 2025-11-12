@@ -287,7 +287,7 @@ class DataCache:
             check_product_compare = get_value('G', '')
             
             # Get external data
-            min_price_value = None
+            min_price_value = 0
             min_key = get_external_key('L', 'M', 'N')
             if min_key and min_key in external_data:
                 try:
@@ -295,7 +295,7 @@ class DataCache:
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Row {idx}: Invalid min_price value - {e}")
             
-            max_price_value = None
+            max_price_value = 0
             max_key = get_external_key('O', 'P', 'Q')
             if max_key and max_key in external_data:
                 try:
@@ -303,7 +303,7 @@ class DataCache:
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Row {idx}: Invalid max_price value - {e}")
             
-            stock_value = None
+            stock_value = 0
             stock_key = get_external_key('R', 'S', 'T')
             if stock_key and stock_key in external_data:
                 try:
@@ -374,51 +374,75 @@ class DataCache:
     
     def save_to_csv(self) -> None:
         with self.lock:
-            try:
-                with open(self.cache_file, 'w', newline='', encoding='utf-8') as f:
-                    if not self.data:
-                        return
-                    
-                    fieldnames = list(asdict(next(iter(self.data.values()))).keys())
-                    writer = csv.DictWriter(f, fieldnames=fieldnames)
-                    writer.writeheader()
-                    
-                    for row in self.data.values():
-                        row_dict = asdict(row)
-                        if row_dict['blacklist_value']:
-                            row_dict['blacklist_value'] = ';'.join(row_dict['blacklist_value'])
-                        else:
-                            row_dict['blacklist_value'] = ''
-                            
-                        if row_dict['include_keywords_value']:
-                            row_dict['include_keywords_value'] = ';'.join(row_dict['include_keywords_value'])
-                        else:
-                            row_dict['include_keywords_value'] = ''
-                            
-                        if row_dict['exclude_keywords_value']:
-                            row_dict['exclude_keywords_value'] = ';'.join(row_dict['exclude_keywords_value'])
-                        else:
-                            row_dict['exclude_keywords_value'] = ''
-                        
-                        # Handle None values for Note and Last_update
-                        if row_dict['Note'] is None:
-                            row_dict['Note'] = ''
-                        if row_dict['Last_update'] is None:
-                            row_dict['Last_update'] = ''
-                        
-                        # Handle None for max_price_value and stock_value and min_price_value
-                        if row_dict['min_price_value'] is None:
-                            row_dict['min_price_value'] = ''
-                        if row_dict['max_price_value'] is None:
-                            row_dict['max_price_value'] = ''
-                        if row_dict['stock_value'] is None:
-                            row_dict['stock_value'] = ''
-                            
-                        writer.writerow(row_dict)
+            if not self.data:
+                logger.info("No data to save to CSV")
+                return
+            data_to_save = [asdict(row) for row in self.data.values()]
+        
+        try:
+            with open(self.cache_file, 'w', newline='', encoding='utf-8') as f:
+                if not data_to_save:
+                    return
                 
-                logger.info(f"Saved {len(self.data)} rows to {self.cache_file}")
-            except Exception as e:
-                logger.exception(f"Failed to save cache to CSV: {e}")
+                fieldnames = list(data_to_save[0].keys())
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                
+                for row_dict in data_to_save:
+                    # Format list fields to semicolon-separated strings
+                    if row_dict['blacklist_value']:
+                        row_dict['blacklist_value'] = ';'.join(row_dict['blacklist_value'])
+                    else:
+                        row_dict['blacklist_value'] = ''
+                        
+                    if row_dict['include_keywords_value']:
+                        row_dict['include_keywords_value'] = ';'.join(row_dict['include_keywords_value'])
+                    else:
+                        row_dict['include_keywords_value'] = ''
+                        
+                    if row_dict['exclude_keywords_value']:
+                        row_dict['exclude_keywords_value'] = ';'.join(row_dict['exclude_keywords_value'])
+                    else:
+                        row_dict['exclude_keywords_value'] = ''
+                    
+                    # Handle None values - convert to empty strings for CSV
+                    if row_dict['Note'] is None:
+                        row_dict['Note'] = ''
+                    if row_dict['Last_update'] is None:
+                        row_dict['Last_update'] = ''
+                    
+                    # Handle None for numeric fields
+                    if row_dict['min_price_value'] is None:
+                        row_dict['min_price_value'] = "0"
+                    if row_dict['max_price_value'] is None:
+                        row_dict['max_price_value'] = "0"
+                    if row_dict['stock_value'] is None:
+                        row_dict['stock_value'] = 0   
+                    if row_dict['DONGIAGIAM_MIN'] is None:
+                        row_dict['DONGIAGIAM_MIN'] = "0"    
+                    if row_dict['DONGIAGIAM_MAX'] is None:
+                        row_dict['DONGIAGIAM_MAX'] = "0"     
+                    
+                    # Format float fields to avoid scientific notation
+                    if isinstance(row_dict['DONGIAGIAM_MIN'], float):
+                        row_dict['DONGIAGIAM_MIN'] = f"{row_dict['DONGIAGIAM_MIN']:.10f}".rstrip('0').rstrip('.')
+                    if isinstance(row_dict['DONGIAGIAM_MAX'], float):
+                        row_dict['DONGIAGIAM_MAX'] = f"{row_dict['DONGIAGIAM_MAX']:.10f}".rstrip('0').rstrip('.')
+                    
+                    if isinstance(row_dict['Relax_time'], float):
+                        row_dict['Relax_time'] = f"{row_dict['Relax_time']:.10f}".rstrip('0').rstrip('.')
+                    
+                    if row_dict['min_price_value'] and isinstance(row_dict['min_price_value'], float):
+                        row_dict['min_price_value'] = f"{row_dict['min_price_value']:.10f}".rstrip('0').rstrip('.')
+                    if row_dict['max_price_value'] and isinstance(row_dict['max_price_value'], float):
+                        row_dict['max_price_value'] = f"{row_dict['max_price_value']:.10f}".rstrip('0').rstrip('.')
+                        
+                    writer.writerow(row_dict)
+            
+            logger.info(f"Saved {len(data_to_save)} rows to {self.cache_file}")
+            
+        except Exception as e:
+            logger.exception(f"Failed to save cache to CSV: {e}")
     
     def load_from_csv(self) -> None:
         with self.lock:
@@ -471,40 +495,65 @@ class DataCache:
                 }
     
     def flush_updates_to_sheet(self, sheet_id: str, sheet_name: str) -> None:
+        logger.info("Starting flush_updates_to_sheet...")
+        
         with self.lock:
+            logger.info("Acquired lock for flush")
+            
             if not self.pending_updates:
                 logger.info("No pending updates to flush")
                 return
             
-            try:
-                worksheet = RowModel.get_worksheet(sheet_id, sheet_name)
+            updates_to_flush = dict(self.pending_updates)
+            self.pending_updates.clear()
+            
+            logger.info(f"Copied {len(updates_to_flush)} updates, releasing lock")
+        
+        logger.info("Starting API call to Google Sheets...")
+        
+        try:
+            worksheet = RowModel.get_worksheet(sheet_id, sheet_name)
+            mapping_dict = RowModel.updated_mapping_fields()
+            
+            batch_data = []
+            
+            for index, updates in updates_to_flush.items():
+                if 'Note' in mapping_dict:
+                    batch_data.append({
+                        'range': f"{mapping_dict['Note']}{index}",
+                        'values': [[updates['Note'] if updates['Note'] else '']]
+                    })
                 
-                mapping_dict = RowModel.updated_mapping_fields()
-                
-                batch_data = []
-                
-                for index, updates in self.pending_updates.items():
-                    if 'Note' in mapping_dict:
-                        batch_data.append({
-                            'range': f"{mapping_dict['Note']}{index}",
-                            'values': [[updates['Note'] if updates['Note'] else '']]
-                        })
-                    
-                    if 'Last_update' in mapping_dict:
-                        batch_data.append({
-                            'range': f"{mapping_dict['Last_update']}{index}",
-                            'values': [[updates['Last_update'] if updates['Last_update'] else '']]
-                        })
-                
-                if batch_data:
-                    worksheet.batch_update(batch_data, value_input_option=ValueInputOption.user_entered)
-                    logger.info(f"Flushed {len(self.pending_updates)} updates to Google Sheet")
-                
-                self.pending_updates.clear()
-                self.save_to_csv()
-                
-            except Exception as e:
-                logger.exception(f"Failed to flush updates to sheet: {e}")
+                if 'Last_update' in mapping_dict:
+                    batch_data.append({
+                        'range': f"{mapping_dict['Last_update']}{index}",
+                        'values': [[updates['Last_update'] if updates['Last_update'] else '']]
+                    })
+            
+            if batch_data:
+                logger.info(f"Sending {len(batch_data)} cell updates to Google Sheets...")
+                worksheet.batch_update(batch_data, value_input_option=ValueInputOption.user_entered)
+                logger.info(f"Successfully flushed {len(updates_to_flush)} updates to Google Sheet")
+            else:
+                logger.warning("No batch data to send (mapping fields might be missing)")
+            
+            logger.info("Saving cache to CSV...")
+            self.save_to_csv()
+            logger.info("CSV save completed")
+            
+        except Exception as e:
+            logger.exception(f"Failed to flush updates to sheet: {e}")
+            
+            with self.lock:
+                # Merge failed updates back into pending_updates
+                for index, updates in updates_to_flush.items():
+                    if index not in self.pending_updates:
+                        self.pending_updates[index] = updates
+                    else:
+                        # If there are newer updates, keep them
+                        logger.warning(f"Index {index} has newer updates, skipping restore")
+            
+            logger.error(f"Restored {len(updates_to_flush)} failed updates back to pending queue")
     
     def get_all_indexes(self) -> List[int]:
         with self.lock:

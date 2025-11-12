@@ -123,14 +123,16 @@ def main():
             index_queue.put(None)
         
         for t in threads:
-            t.join(timeout=60)
+            t.join(timeout=120)
+            if t.is_alive():
+                logger.warning(f"Thread {t.name} did not finish in time!!!!!!!!!!")
 
         logger.info(f"Flushing batch {batch_idx}/{total_batches} to Google Sheet...")
         cache = get_cache()
         cache.flush_updates_to_sheet(config.SHEET_ID, config.SHEET_NAME)
         logger.info(f"Batch {batch_idx}/{total_batches} flushed successfully")
 
-    logger.info(f"\nCompleted processing {len(run_indexes)} rows in {total_batches} batches")
+    logger.info(f"Completed processing {len(run_indexes)} rows in {total_batches} batches")
     logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
     time.sleep(int(os.getenv("RELAX_TIME_EACH_ROUND", "10")))
 
