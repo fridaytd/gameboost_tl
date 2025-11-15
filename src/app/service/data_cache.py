@@ -316,7 +316,7 @@ class DataCache:
             check_product_compare = get_value("G", "")
 
             # Get external data
-            min_price_value = 0
+            min_price_value = None
             min_key = get_external_key("L", "M", "N")
             if min_key and min_key in external_data:
                 try:
@@ -324,7 +324,7 @@ class DataCache:
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Row {idx}: Invalid min_price value - {e}")
 
-            max_price_value = 0
+            max_price_value = None
             max_key = get_external_key("O", "P", "Q")
             if max_key and max_key in external_data:
                 try:
@@ -332,7 +332,7 @@ class DataCache:
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Row {idx}: Invalid max_price value - {e}")
 
-            stock_value = 0
+            stock_value = None
             stock_key = get_external_key("R", "S", "T")
             if stock_key and stock_key in external_data:
                 try:
@@ -450,29 +450,17 @@ class DataCache:
                     if row_dict["Last_update"] is None:
                         row_dict["Last_update"] = ""
 
-                    # Handle None for numeric fields
-                    if row_dict["min_price_value"] is None:
-                        row_dict["min_price_value"] = "0"
-                    if row_dict["max_price_value"] is None:
-                        row_dict["max_price_value"] = "0"
-                    if row_dict["stock_value"] is None:
-                        row_dict["stock_value"] = 0
-                    if row_dict["DONGIAGIAM_MIN"] is None:
-                        row_dict["DONGIAGIAM_MIN"] = "0"
-                    if row_dict["DONGIAGIAM_MAX"] is None:
-                        row_dict["DONGIAGIAM_MAX"] = "0"
-
                     # Format float fields to avoid scientific notation
-                    if isinstance(row_dict["DONGIAGIAM_MIN"], float):
+                    if row_dict["DONGIAGIAM_MIN"] and isinstance(row_dict["DONGIAGIAM_MIN"], float):
                         row_dict["DONGIAGIAM_MIN"] = (
                             f"{row_dict['DONGIAGIAM_MIN']:.10f}".rstrip("0").rstrip(".")
                         )
-                    if isinstance(row_dict["DONGIAGIAM_MAX"], float):
+                    if row_dict["DONGIAGIAM_MAX"] and isinstance(row_dict["DONGIAGIAM_MAX"], float):
                         row_dict["DONGIAGIAM_MAX"] = (
                             f"{row_dict['DONGIAGIAM_MAX']:.10f}".rstrip("0").rstrip(".")
                         )
 
-                    if isinstance(row_dict["Relax_time"], float):
+                    if row_dict["Relax_time"] and isinstance(row_dict["Relax_time"], float):
                         row_dict["Relax_time"] = (
                             f"{row_dict['Relax_time']:.10f}".rstrip("0").rstrip(".")
                         )

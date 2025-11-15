@@ -3,13 +3,14 @@ import time
 from datetime import datetime
 from queue import Queue
 from threading import Thread
+from typing import Optional
 
 from pydantic import ValidationError
 from seleniumbase import SB
 
 from app import config, logger
 from app.processes.main_process import process
-from app.service.data_cache import get_cache, initialize_cache
+from app.service.data_cache import CachedRow, get_cache, initialize_cache
 from app.shared.decorators import retry_on_fail
 from app.shared.paths import SRC_PATH
 from app.shared.utils import formated_datetime
@@ -65,6 +66,37 @@ def update_error_to_cache(index: int, error_msg: str):
     except Exception as e:
         logger.exception(f"Failed to update error to cache: {e}")
 
+def validate_required_fields(cached_row: CachedRow, thread_prefix: str) -> tuple[bool, Optional[str]]:
+    required_fields = {
+        'Category': 'Category',
+        'Product_link': 'Product_link',
+        'Check_product_compare': 'CHECK_PRODUCT_COMPARE',
+        'DONGIAGIAM_MIN': 'DONGIAGIAM_MIN',
+        'DONGIAGIAM_MAX': 'DONGIAGIAM_MAX',
+        'DONGIA_LAMTRON': 'DONGIA_LAMTRON',
+        'min_price_value': 'MIN_PRICE',
+        'stock_value': 'STOCK',
+        'blacklist_value': 'BLACKLIST',
+        'Relax_time': 'RELAX_TIME'
+    }
+    
+    for field_name, display_name in required_fields.items():
+        value = getattr(cached_row, field_name, None)
+        
+        # Check None
+        if value is None:
+            error_msg = f"Giá trị {display_name} đang rỗng. Vui lòng cập nhật!"
+            logger.error(f"{thread_prefix} Validation failed: {error_msg}")
+            return False, error_msg
+        
+        # Check empty string for string fields
+        # if isinstance(value, str) and not value.strip():
+        #     error_msg = f"Giá trị {display_name} đang rỗng. Vui lòng cập nhật!"
+        #     logger.error(f"{thread_prefix} Validation failed: {error_msg}")
+        #     return False, error_msg
+    
+    logger.info(f"{thread_prefix} All required fields are not empty")
+    return True, None
 
 def worker(index_queue: Queue, cookies_path: str, worker_id: int):
     thread_prefix = f"[Worker-{worker_id}]"
@@ -87,6 +119,13 @@ def worker(index_queue: Queue, cookies_path: str, worker_id: int):
 
             if cached_row is None:
                 logger.error(f"{thread_prefix} Row {index} not found in cache")
+                index_queue.task_done()
+                continue
+
+            is_valid, error_message = validate_required_fields(cached_row, thread_prefix)
+            if not is_valid:
+                logger.error(f"{thread_prefix} Row {index} validation failed: {error_message}")
+                update_error_to_cache(index, error_message)
                 index_queue.task_done()
                 continue
 
