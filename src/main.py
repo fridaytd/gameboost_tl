@@ -51,7 +51,7 @@ class BrowserManager:
 
 browser_manager = BrowserManager()
 for _ in range(config.THREAD_NUMBER):
-    browser_manager.create_browser(uc=True, headless=False, disable_js=True)
+    browser_manager.create_browser(uc=True, headless=True, disable_js=True)
 
 
 def update_error_to_cache(index: int, error_msg: str):
@@ -66,37 +66,41 @@ def update_error_to_cache(index: int, error_msg: str):
     except Exception as e:
         logger.exception(f"Failed to update error to cache: {e}")
 
-def validate_required_fields(cached_row: CachedRow, thread_prefix: str) -> tuple[bool, Optional[str]]:
+
+def validate_required_fields(
+    cached_row: CachedRow, thread_prefix: str
+) -> tuple[bool, Optional[str]]:
     required_fields = {
-        'Category': 'Category',
-        'Product_link': 'Product_link',
-        'Check_product_compare': 'CHECK_PRODUCT_COMPARE',
-        'DONGIAGIAM_MIN': 'DONGIAGIAM_MIN',
-        'DONGIAGIAM_MAX': 'DONGIAGIAM_MAX',
-        'DONGIA_LAMTRON': 'DONGIA_LAMTRON',
-        'min_price_value': 'MIN_PRICE',
-        'stock_value': 'STOCK',
-        'blacklist_value': 'BLACKLIST',
-        'Relax_time': 'RELAX_TIME'
+        "Category": "Category",
+        "Product_link": "Product_link",
+        "Check_product_compare": "CHECK_PRODUCT_COMPARE",
+        "DONGIAGIAM_MIN": "DONGIAGIAM_MIN",
+        "DONGIAGIAM_MAX": "DONGIAGIAM_MAX",
+        "DONGIA_LAMTRON": "DONGIA_LAMTRON",
+        "min_price_value": "MIN_PRICE",
+        "stock_value": "STOCK",
+        "blacklist_value": "BLACKLIST",
+        "Relax_time": "RELAX_TIME",
     }
-    
+
     for field_name, display_name in required_fields.items():
         value = getattr(cached_row, field_name, None)
-        
+
         # Check None
         if value is None:
             error_msg = f"Giá trị {display_name} đang rỗng. Vui lòng cập nhật!"
             logger.error(f"{thread_prefix} Validation failed: {error_msg}")
             return False, error_msg
-        
+
         # Check empty string for string fields
         # if isinstance(value, str) and not value.strip():
         #     error_msg = f"Giá trị {display_name} đang rỗng. Vui lòng cập nhật!"
         #     logger.error(f"{thread_prefix} Validation failed: {error_msg}")
         #     return False, error_msg
-    
+
     logger.info(f"{thread_prefix} All required fields are not empty")
     return True, None
+
 
 def worker(index_queue: Queue, cookies_path: str, worker_id: int):
     thread_prefix = f"[Worker-{worker_id}]"
@@ -122,16 +126,20 @@ def worker(index_queue: Queue, cookies_path: str, worker_id: int):
                 index_queue.task_done()
                 continue
 
-            is_valid, error_message = validate_required_fields(cached_row, thread_prefix)
+            is_valid, error_message = validate_required_fields(
+                cached_row, thread_prefix
+            )
             if not is_valid:
-                logger.error(f"{thread_prefix} Row {index} validation failed: {error_message}")
+                logger.error(
+                    f"{thread_prefix} Row {index} validation failed: {error_message}"
+                )
                 update_error_to_cache(index, error_message)
                 index_queue.task_done()
                 continue
 
             process(sb, cached_row)
             logger.info(f"{thread_prefix} Sleep for {cached_row.Relax_time}s")
-            # time.sleep(cached_row.Relax_time)
+            time.sleep(cached_row.Relax_time)
 
         except ValidationError as e:
             logger.exception(f"{thread_prefix} VALIDATION ERROR AT ROW: {index}")
@@ -216,7 +224,7 @@ def main():
         f"Completed processing {len(run_indexes)} rows in {total_batches} batches"
     )
     logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
-    # time.sleep(int(os.getenv("RELAX_TIME_EACH_ROUND", "10")))
+    time.sleep(int(os.getenv("RELAX_TIME_EACH_ROUND", "10")))
 
 
 @retry_on_fail(max_retries=10, sleep_interval=1)

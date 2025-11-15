@@ -228,7 +228,7 @@ class DataCache:
                 if other_refs:
                     ranges = [f"{sheet_name}!{ref[1]['cell']}" for ref in other_refs]
                     try:
-                        print(ranges)
+                        logger.info(f"Fetching ...: {ranges}")
                         results = g_client.http_client.values_batch_get(
                             id=sheet_id, ranges=ranges
                         )
@@ -451,16 +451,22 @@ class DataCache:
                         row_dict["Last_update"] = ""
 
                     # Format float fields to avoid scientific notation
-                    if row_dict["DONGIAGIAM_MIN"] and isinstance(row_dict["DONGIAGIAM_MIN"], float):
+                    if row_dict["DONGIAGIAM_MIN"] and isinstance(
+                        row_dict["DONGIAGIAM_MIN"], float
+                    ):
                         row_dict["DONGIAGIAM_MIN"] = (
                             f"{row_dict['DONGIAGIAM_MIN']:.10f}".rstrip("0").rstrip(".")
                         )
-                    if row_dict["DONGIAGIAM_MAX"] and isinstance(row_dict["DONGIAGIAM_MAX"], float):
+                    if row_dict["DONGIAGIAM_MAX"] and isinstance(
+                        row_dict["DONGIAGIAM_MAX"], float
+                    ):
                         row_dict["DONGIAGIAM_MAX"] = (
                             f"{row_dict['DONGIAGIAM_MAX']:.10f}".rstrip("0").rstrip(".")
                         )
 
-                    if row_dict["Relax_time"] and isinstance(row_dict["Relax_time"], float):
+                    if row_dict["Relax_time"] and isinstance(
+                        row_dict["Relax_time"], float
+                    ):
                         row_dict["Relax_time"] = (
                             f"{row_dict['Relax_time']:.10f}".rstrip("0").rstrip(".")
                         )
