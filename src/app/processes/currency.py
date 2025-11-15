@@ -1,17 +1,17 @@
 import logging
 from datetime import datetime
 
-from app.gameboost.api import gameboost_api_client
-from app.shared.utils import formated_datetime
-from app.crwl.crwl import currencies_extract
 from app import config
-from app.service.data_cache import get_cache, CachedRow
+from app.crwl.crwl import currencies_extract
+from app.gameboost.api import gameboost_api_client
+from app.service.data_cache import CachedRow, get_cache
+from app.shared.utils import formated_datetime
 
 from .shared import (
+    calculate_price_change,
     filter_valid_offers,
     find_lower_price_offers,
     find_offer_min_price,
-    calculate_price_change,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,15 +21,13 @@ def update_cache_note(cached_row: CachedRow, note: str):
     now = datetime.now()
     cache = get_cache()
     cache.update_fields(
-        index=cached_row.index,
-        note=note,
-        last_update=formated_datetime(now)
+        index=cached_row.index, note=note, last_update=formated_datetime(now)
     )
 
 
 def currency_process(sb, cached_row: CachedRow):
     now = datetime.now()
-    
+
     # If not compare product, update by min price and return
     if cached_row.Check_product_compare == "0":
         logger.info(
@@ -50,7 +48,7 @@ def currency_process(sb, cached_row: CachedRow):
         note = f"{formated_datetime(now)}: Không so sánh, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={min_price}, Pricemax={max_price}"
         update_cache_note(cached_row, note)
         return
-    
+
     # Try to crawl compare product
     try:
         logger.info(f"Crawling at: {cached_row.Product_compare}")
@@ -113,10 +111,12 @@ def currency_process(sb, cached_row: CachedRow):
 
     # Get current price from API
     my_item_offer = gameboost_api_client.get_item_offer(cached_row.Product_link)
-    current_price = my_item_offer.data.price if my_item_offer else min_price
-    
+    current_price = my_item_offer.data.price_eur.amount
     # Calculate new price
-    if cached_row.Check_product_compare == "2" and current_price < offer_min_price.price:
+    if (
+        cached_row.Check_product_compare == "2"
+        and current_price < offer_min_price.price
+    ):
         note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
         update_cache_note(cached_row, note)
         return

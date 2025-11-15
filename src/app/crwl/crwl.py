@@ -1,11 +1,12 @@
 import json
-from bs4 import BeautifulSoup
 import random
+
+from bs4 import BeautifulSoup
+
+from app.shared.decorators import retry_on_fail
 
 from .exceptions import CrwlError
 from .models import Offer
-
-from app.shared.decorators import retry_on_fail
 
 
 def get_soup(
@@ -13,7 +14,7 @@ def get_soup(
     url: str,
 ) -> BeautifulSoup:
     sb.get(url)
-    # sb.cdp.sleep(random.uniform(0.5, 0.9))
+    sb.cdp.sleep(random.uniform(1, 1.5))
     soup = BeautifulSoup(sb.cdp.get_page_source(), "html.parser")
     sb.cdp.sleep(random.uniform(0.3, 0.7))
     return soup

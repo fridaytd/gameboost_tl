@@ -1,17 +1,17 @@
 import logging
 from datetime import datetime
 
-from app.gameboost.api import gameboost_api_client
-from app.shared.utils import formated_datetime
-from app.crwl.crwl import accounts_extract
 from app import config
-from app.service.data_cache import get_cache, CachedRow
+from app.crwl.crwl import accounts_extract
+from app.gameboost.api import gameboost_api_client
+from app.service.data_cache import CachedRow, get_cache
+from app.shared.utils import formated_datetime
 
 from .shared import (
+    calculate_price_change,
     filter_valid_offers,
     find_lower_price_offers,
     find_offer_min_price,
-    calculate_price_change,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,14 +38,11 @@ def update_cache_note(cached_row: CachedRow, note: str):
     now = datetime.now()
     cache = get_cache()
     cache.update_fields(
-        index=cached_row.index,
-        note=note,
-        last_update=formated_datetime(now)
+        index=cached_row.index, note=note, last_update=formated_datetime(now)
     )
 
 
 def account_process(sb, cached_row: CachedRow):
-    
     account_offer_ids = [id.strip() for id in cached_row.Product_link.split(";")]
     now = datetime.now()
 
@@ -65,7 +62,7 @@ def account_process(sb, cached_row: CachedRow):
         note = f"{formated_datetime(now)}: Không so sánh, Cập nhật theo giá min. PRICE={min_price}, Pricemin={min_price}, Pricemax={max_price}"
         update_cache_note(cached_row, note)
         return
-    
+
     # Try to crawl compare product
     try:
         logger.info(f"Crawling at: {cached_row.Product_compare}")
@@ -117,13 +114,16 @@ def account_process(sb, cached_row: CachedRow):
         note = f"{formated_datetime(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {target_price:f}; Pricemin = {min_price:f}, Pricemax = {max_price:f}\nSeller có giá thấp hơn: {', '.join([f'{offer.seller} - {offer.price}' for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}"
         update_cache_note(cached_row, note)
         return
-    
+
     my_item_offer = gameboost_api_client.get_item_offer(cached_row.Product_link)
-    logger.debug(f'my_item_offer: {my_item_offer}')
-    current_price = my_item_offer.data.price if my_item_offer else min_price
-    
+    logger.debug(f"my_item_offer: {my_item_offer}")
+    current_price = my_item_offer.data.price_eur.amount
+
     # Calculate new price
-    if cached_row.Check_product_compare == "2" and current_price < offer_min_price.price:
+    if (
+        cached_row.Check_product_compare == "2"
+        and current_price < offer_min_price.price
+    ):
         note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
         update_cache_note(cached_row, note)
         return
