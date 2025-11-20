@@ -7,7 +7,7 @@ from gspread import service_account
 from gspread.worksheet import Worksheet
 from gspread.cell import Cell
 from gspread.utils import ValueInputOption
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.shared.paths import ROOT_PATH
 from app import config
@@ -465,23 +465,26 @@ class RowModel(ColSheetModel):
     DONGIAGIAM_MIN: Annotated[float, {COL_META: "I"}]
     DONGIAGIAM_MAX: Annotated[float, {COL_META: "J"}]
     DONGIA_LAMTRON: Annotated[int, {COL_META: "K"}]
-    IDSHEET_MIN: Annotated[str, {COL_META: "L"}]
-    SHEET_MIN: Annotated[str, {COL_META: "M"}]
-    CELL_MIN: Annotated[str, {COL_META: "N"}]
-    IDSHEET_MAX: Annotated[str, {COL_META: "O"}]
-    SHEET_MAX: Annotated[str, {COL_META: "P"}]
-    CELL_MAX: Annotated[str, {COL_META: "Q"}]
-    IDSHEET_STOCK: Annotated[str, {COL_META: "R"}]
-    SHEET_STOCK: Annotated[str, {COL_META: "S"}]
-    CELL_STOCK: Annotated[str, {COL_META: "T"}]
-    IDSHEET_BLACKLIST: Annotated[str, {COL_META: "U"}]
-    SHEET_BLACKLIST: Annotated[str, {COL_META: "V"}]
-    CELL_BLACKLIST: Annotated[str, {COL_META: "W"}]
+    IDSHEET_MIN: Annotated[str | None, {COL_META: "L"}] = None
+    SHEET_MIN: Annotated[str | None, {COL_META: "M"}] = None
+    CELL_MIN: Annotated[str | None, {COL_META: "N"}] = None
+    IDSHEET_MAX: Annotated[str | None, {COL_META: "O"}] = None
+    SHEET_MAX: Annotated[str | None, {COL_META: "P"}] = None
+    CELL_MAX: Annotated[str | None, {COL_META: "Q"}] = None
+    IDSHEET_STOCK: Annotated[str | None, {COL_META: "R"}] = None
+    SHEET_STOCK: Annotated[str | None, {COL_META: "S"}] = None
+    CELL_STOCK: Annotated[str | None, {COL_META: "T"}] = None
+    IDSHEET_BLACKLIST: Annotated[str | None, {COL_META: "U"}] = None
+    SHEET_BLACKLIST: Annotated[str | None, {COL_META: "V"}] = None
+    CELL_BLACKLIST: Annotated[str | None, {COL_META: "W"}] = None
     Relax_time: Annotated[float, {COL_META: "X"}]
-    INCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Y"}]
-    EXCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Z"}]
+    INCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Y"}] = None
+    EXCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Z"}] = None
 
     def min_price(self) -> float:
+        if not self.IDSHEET_MIN or not self.SHEET_MIN or not self.CELL_MIN:
+            raise SheetError("Missing MIN price configuration")
+        
         g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
 
         res = g_client.http_client.values_get(
@@ -498,6 +501,9 @@ class RowModel(ColSheetModel):
         )
 
     def max_price(self) -> float | None:
+        if not self.IDSHEET_MAX or not self.SHEET_MAX or not self.CELL_MAX:
+            return None
+
         g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
 
         res = g_client.http_client.values_get(
@@ -510,6 +516,9 @@ class RowModel(ColSheetModel):
         return None
 
     def stock(self) -> int:
+        if not self.IDSHEET_STOCK or not self.SHEET_STOCK or not self.CELL_STOCK:
+            raise SheetError("Missing STOCK configuration")
+        
         g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
 
         res = g_client.http_client.values_get(
@@ -521,10 +530,13 @@ class RowModel(ColSheetModel):
             return int(stock[0][0])
 
         raise SheetError(
-            f"{self.IDSHEET_MIN}->{self.SHEET_MIN}->{self.CELL_MIN} is None"
+            f"{self.IDSHEET_STOCK}->{self.SHEET_STOCK}->{self.CELL_STOCK} is None"
         )
 
     def blacklist(self) -> list[str]:
+        if not self.IDSHEET_BLACKLIST or not self.SHEET_BLACKLIST or not self.CELL_BLACKLIST:
+            return []
+        
         g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
 
         spreadsheet = g_client.open_by_key(self.IDSHEET_BLACKLIST)
@@ -538,10 +550,8 @@ class RowModel(ColSheetModel):
                 for i in blist:
                     res.append(i)
             return res
-
-        raise SheetError(
-            f"{self.IDSHEET_BLACKLIST}->{self.IDSHEET_BLACKLIST}->{self.CELL_BLACKLIST} is None"
-        )
+        
+        return []
 
     def include_keywords(self) -> list[str] | None:
         if self.INCLUDE_KEYWORDS is None:

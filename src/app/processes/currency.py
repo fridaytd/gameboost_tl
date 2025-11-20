@@ -1,90 +1,91 @@
 import logging
-
 from datetime import datetime
 
-from app.sheet.models import RowModel
-
-# from app.shared.decorators import retry_on_fail
-from app.gameboost.api import gameboost_api_client
-from app.shared.utils import formated_datetime
-from app.crwl.crwl import currencies_extract
 from app import config
+from app.crwl.crwl import currencies_extract
+from app.gameboost.api import gameboost_api_client
+from app.service.data_cache import CachedRow, get_cache
+from app.shared.utils import formated_datetime
 
 from .shared import (
+    calculate_price_change,
     filter_valid_offers,
     find_lower_price_offers,
     find_offer_min_price,
-    calculate_price_change,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def currency_process(sb, run_row: RowModel):
+def update_cache_note(cached_row: CachedRow, note: str):
+    now = datetime.now()
+    cache = get_cache()
+    cache.update_fields(
+        index=cached_row.index, note=note, last_update=formated_datetime(now)
+    )
+
+
+def currency_process(sb, cached_row: CachedRow):
+    now = datetime.now()
+
     # If not compare product, update by min price and return
-    if run_row.Check_product_compare == "0":
+    if cached_row.Check_product_compare == "0":
         logger.info(
-            f"{run_row.Product_name} is skipped due to Check_product_compare != 1"
+            f"{cached_row.Product_name} is skipped due to Check_product_compare != 1"
         )
-        min_price = run_row.min_price()
-        max_price = run_row.max_price()
-        stock = run_row.stock()
+        min_price = cached_row.min_price_value
+        max_price = cached_row.max_price_value
+        stock = cached_row.stock_value
 
         res = gameboost_api_client.update_currency_offer(
-            currency_offer_id=run_row.Product_link,
+            currency_offer_id=cached_row.Product_link,
             price=min_price,
             stock=stock,
         )
 
         logger.info(f"Update currency offer response: {res}")
 
-        now = datetime.now()
-
-        run_row.Note = f"{formated_datetime(now)}: Không so sánh, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={run_row.min_price()}, Pricemax={max_price}"
-        run_row.Last_update = formated_datetime(now)
-        run_row.update()
+        note = f"{formated_datetime(now)}: Không so sánh, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={min_price}, Pricemax={max_price}"
+        update_cache_note(cached_row, note)
         return
+
     # Try to crawl compare product
     try:
-        logger.info(f"Crawling at: {run_row.Product_compare}")
-        crwl_offers = currencies_extract(sb, run_row.Product_compare)
+        logger.info(f"Crawling at: {cached_row.Product_compare}")
+        crwl_offers = currencies_extract(sb, cached_row.Product_compare)
 
     except Exception as e:
         # If crawl error, update by min price and return
-        logger.exception(f"Error crawling {run_row.Product_name}: {e}")
+        logger.exception(f"Error crawling {cached_row.Product_name}: {e}")
 
-        min_price = run_row.min_price()
-        max_price = run_row.max_price()
-        stock = run_row.stock()
+        min_price = cached_row.min_price_value
+        max_price = cached_row.max_price_value
+        stock = cached_row.stock_value
 
         res = gameboost_api_client.update_currency_offer(
-            currency_offer_id=run_row.Product_link,
+            currency_offer_id=cached_row.Product_link,
             price=min_price,
             stock=stock,
         )
 
         logger.info(f"Update currency offer response: {res}")
 
-        now = datetime.now()
-
-        run_row.Note = f"{formated_datetime(now)}: Không thể quét giá: {e}, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={run_row.min_price()}, Pricemax={max_price}"
-        run_row.Last_update = formated_datetime(now)
-        run_row.update()
-
+        note = f"{formated_datetime(now)}: Không thể quét giá: {e}, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={min_price}, Pricemax={max_price}"
+        update_cache_note(cached_row, note)
         return
 
-    min_price = run_row.min_price()
-    max_price = run_row.max_price()
-    blacklist = run_row.blacklist()
-    stock = run_row.stock()
+    min_price = cached_row.min_price_value
+    max_price = cached_row.max_price_value
+    blacklist = cached_row.blacklist_value
+    stock = cached_row.stock_value
 
     valid_offers = filter_valid_offers(
         crwl_offers,
         min_price=min_price,
         max_price=max_price,
         blacklist=blacklist,
-        include_keywords=run_row.include_keywords(),
-        exclude_keywords=run_row.exclude_keywords(),
+        include_keywords=cached_row.include_keywords_value,
+        exclude_keywords=cached_row.exclude_keywords_value,
     )
 
     offer_min_price = find_offer_min_price(valid_offers)
@@ -96,52 +97,48 @@ def currency_process(sb, run_row: RowModel):
 
         # No valid offers, update to min price
         res = gameboost_api_client.update_currency_offer(
-            currency_offer_id=run_row.Product_link,
+            currency_offer_id=cached_row.Product_link,
             price=target_price,
             stock=stock,
         )
 
         logger.info(f"Update currency offer response: {res}")
 
-        now = datetime.now()
-
         lower_price_offers = find_lower_price_offers(crwl_offers, min_price)
-        run_row.Note = f"{formated_datetime(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {target_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}\nSeller có giá thấp hơn: {', '.join([f'{offer.seller} - {offer.price}' for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}"
-        run_row.Last_update = formated_datetime(now)
-        run_row.update()
+        note = f"{formated_datetime(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {target_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}\nSeller có giá thấp hơn: {', '.join([f'{offer.seller} - {offer.price}' for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}"
+        update_cache_note(cached_row, note)
         return
 
-   
-    my_item_offer = gameboost_api_client.get_item_offer(run_row.Product_link)
-    current_price = my_item_offer.data.price if my_item_offer else min_price
+    # Get current price from API
+    my_item_offer = gameboost_api_client.get_item_offer(cached_row.Product_link)
+    current_price = my_item_offer.data.price_eur.amount
     # Calculate new price
-    if run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
-        run_row.Note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
-        run_row.Last_update = formated_datetime(now)
-        run_row.update()
+    if (
+        cached_row.Check_product_compare == "2"
+        and current_price < offer_min_price.price
+    ):
+        note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
+        update_cache_note(cached_row, note)
         return
     else:
         new_price = calculate_price_change(
-            run_row,
+            cached_row,
             offer_min_price.price,
             min_price,
         )
 
     # Update price if changed
     res = gameboost_api_client.update_currency_offer(
-        currency_offer_id=run_row.Product_link,
+        currency_offer_id=cached_row.Product_link,
         price=new_price,
         stock=stock,
     )
 
     logger.info(f"Update currency offer response: {res}")
 
-    now = datetime.now()
     lower_price_offers = find_lower_price_offers(crwl_offers, new_price)
-    run_row.Note = f"""{formated_datetime(now)}:Giá đã cập nhật thành công; Price = {new_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}, GiaSosanh = {offer_min_price.price:f} - Seller: {offer_min_price.seller}
+    note = f"""{formated_datetime(now)}:Giá đã cập nhật thành công; Price = {new_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}, GiaSosanh = {offer_min_price.price:f} - Seller: {offer_min_price.seller}
 Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price:f}" for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}
 """
-    run_row.Last_update = formated_datetime(now)
-    run_row.update()
-
+    update_cache_note(cached_row, note)
     return
