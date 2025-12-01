@@ -98,7 +98,7 @@ class AccountOffer(BaseModel):
     # delivery_time: DeliveryTime
     # is_manual_delivery: bool
     # credentials: Credentials
-    delivery_instructions: str
+    delivery_instructions: str | None = None
     price: CurrencyPrice
     price_usd: CurrencyPrice
     views: int
@@ -117,7 +117,7 @@ class ItemOffer(BaseModel):
     # parameters: dict
     status: str
     # delivery_time: DeliveryTime
-    delivery_instructions: str
+    delivery_instructions: str | None = None
     stock: int
     min_quantity: int
     price_eur: CurrencyPrice
