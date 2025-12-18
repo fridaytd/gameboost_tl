@@ -241,10 +241,10 @@ def set_cookies():
         sb.cdp.click('span:contains("Change language and currency")')
         sb.cdp.sleep(0.5)
         logger.info("Click currency")
-        sb.cdp.mouse_click('label:contains("Currency") ~ button')
+        sb.cdp.mouse_click('label:contains("Currency") ~ div')
         sb.cdp.sleep(0.5)
         logger.info("Click Euro")
-        sb.cdp.mouse_click('div[aria-selected] span:contains("Euro")')
+        sb.cdp.mouse_click("#multiselect-option-EUR")
         sb.cdp.sleep(0.5)
         logger.info("Click Save Changes")
         sb.cdp.find_element_by_text("Save Changes").click()
@@ -256,7 +256,8 @@ if __name__ == "__main__":
     logger.info("=== STARTING SCRIPT ===")
 
     logger.info("Setting cookies...")
-    set_cookies()
+    if not (SRC_PATH / "data" / "cookies.txt").exists():
+        set_cookies()
     logger.info("Cookies set.")
     while True:
         main()
