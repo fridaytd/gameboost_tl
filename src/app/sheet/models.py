@@ -1,24 +1,12 @@
-from datetime import datetime
+from typing import Annotated, Final, Self, TypeVar, Generic
 
+from pydantic import BaseModel, ConfigDict
 
-from typing import Annotated, Final, Self, TypeVar, Generic, Any
-
-from gspread import service_account
-from gspread.worksheet import Worksheet
-from gspread.cell import Cell
-from gspread.utils import ValueInputOption
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
-
-from app.shared.paths import ROOT_PATH
-from app import config
-
+from app.gsheet_cache_manager import gsheet_cache_manager
 
 from ..shared.decorators import retry_on_fail
 from .enums import CheckType
-from .g_sheet import gsheet_client
 from .exceptions import SheetError
-from ..shared.utils import formated_datetime
-from .utils import fri_col_index_to_col_a1
 
 T = TypeVar("T")
 
@@ -46,31 +34,7 @@ class ColSheetModel(BaseModel):
     index: int
 
     @classmethod
-    def get_worksheet(
-        cls,
-        sheet_id: str,
-        sheet_name: str,
-    ) -> Worksheet:
-        """
-        Retrieve a worksheet object from Google Sheets using the provided sheet ID and sheet name.
-        Args:
-            sheet_id (str): The ID of the Google Sheet.
-            sheet_name (str): The name of the worksheet within the sheet.
-        Returns:
-            Worksheet: The worksheet object.
-        """
-        spreadsheet = gsheet_client.open_by_key(sheet_id)
-        worksheet = spreadsheet.worksheet(sheet_name)
-
-        return worksheet
-
-    @classmethod
     def mapping_fields(cls) -> dict:
-        """
-        Get a mapping of model field names to their corresponding column names in the sheet.
-        Returns:
-            dict: Mapping of field names to column names.
-        """
         mapping_fields = {}
         for field_name, field_info in cls.model_fields.items():
             if hasattr(field_info, "metadata"):
@@ -109,23 +73,7 @@ class ColSheetModel(BaseModel):
         sheet_name: str,
         index: int,
     ) -> Self:
-        """
-        Retrieve a single row from the sheet and return it as a model instance.
-        Args:
-            sheet_id (str): The ID of the Google Sheet.
-            sheet_name (str): The name of the worksheet.
-            index (int): The row index to retrieve.
-        Returns:
-            Self: An instance of the model populated with the row data.
-        """
         mapping_dict = cls.mapping_fields()
-
-        query_value = []
-
-        for _, v in mapping_dict.items():
-            query_value.append(f"{v}{index}")
-
-        worksheet = cls.get_worksheet(sheet_id=sheet_id, sheet_name=sheet_name)
 
         model_dict = {
             "index": index,
@@ -133,76 +81,49 @@ class ColSheetModel(BaseModel):
             "sheet_name": sheet_name,
         }
 
-        query_results = worksheet.batch_get(query_value)
-        count = 0
-        for k, _ in mapping_dict.items():
-            model_dict[k] = query_results[count].first()
-            if isinstance(model_dict[k], str):
-                model_dict[k] = model_dict[k].strip()
-            count += 1
+        for k, v in mapping_dict.items():
+            model_dict[k] = gsheet_cache_manager.get_value(
+                sheet_id=sheet_id,
+                sheet_name=sheet_name,
+                cell=f"{v}{index}",
+            )
+
         return cls.model_validate(model_dict)
 
-    @classmethod
-    def batch_get(
-        cls,
-        sheet_id: str,
-        sheet_name: str,
-        indexes: list[int],
-    ) -> list[Self]:
-        """
-        Retrieve multiple rows from the sheet and return them as a list of model instances.
-        Args:
-            sheet_id (str): The ID of the Google Sheet.
-            sheet_name (str): The name of the worksheet.
-            indexes (list[int]): List of row indexes to retrieve.
-        Returns:
-            list[Self]: List of model instances for each row.
-        """
-        worksheet = cls.get_worksheet(
-            sheet_id=sheet_id,
-            sheet_name=sheet_name,
+    def update(
+        self,
+    ) -> None:
+        mapping_dict = self.updated_mapping_fields()
+        model_dict = self.model_dump(mode="json")
+
+        update_cells: list[str] = []
+
+        for k, v in mapping_dict.items():
+            update_cell = f"{v}{self.index}"
+            update_cells.append(update_cell)
+            gsheet_cache_manager.update_value(
+                sheet_id=self.sheet_id,
+                sheet_name=self.sheet_name,
+                cell=update_cell,
+                value=model_dict[k],
+            )
+
+    def flush_to_sheet(
+        self,
+    ) -> None:
+        mapping_dict = self.updated_mapping_fields()
+
+        update_cells: list[str] = []
+
+        for k, v in mapping_dict.items():
+            update_cell = f"{v}{self.index}"
+            update_cells.append(update_cell)
+
+        gsheet_cache_manager.flush_to_sheet(
+            sheet_id=self.sheet_id,
+            sheet_name=self.sheet_name,
+            cells=update_cells,
         )
-        mapping_dict = cls.mapping_fields()
-
-        result_list: list[Self] = []
-        error_list: list[NoteMessageUpdatePayload] = []
-
-        query_value = []
-        for index in indexes:
-            for _, v in mapping_dict.items():
-                query_value.append(f"{v}{index}")
-
-        query_results = worksheet.batch_get(query_value)
-
-        count = 0
-
-        for index in indexes:
-            model_dict = {
-                "index": index,
-                "sheet_id": sheet_id,
-                "sheet_name": sheet_name,
-            }
-
-            for k, _ in mapping_dict.items():
-                model_dict[k] = query_results[count].first()
-                if isinstance(model_dict[k], str):
-                    model_dict[k] = model_dict[k].strip()
-                count += 1
-            try:
-                result_list.append(cls.model_validate(model_dict))
-            except ValidationError as e:
-                error_list.append(
-                    NoteMessageUpdatePayload(
-                        index=index,
-                        message=f"{formated_datetime(datetime.now())} Validation Error at row {index}: {e.errors(include_url=False)}",
-                    )
-                )
-
-        cls.batch_update_note_message(
-            sheet_id=sheet_id, sheet_name=sheet_name, update_payloads=error_list
-        )
-
-        return result_list
 
     @classmethod
     @retry_on_fail(max_retries=3, sleep_interval=30)
@@ -221,236 +142,80 @@ class ColSheetModel(BaseModel):
         Returns:
             None
         """
-        worksheet = cls.get_worksheet(
-            sheet_id=sheet_id,
-            sheet_name=sheet_name,
-        )
         mapping_dict = cls.updated_mapping_fields()
-        update_batch = []
+        update_cells: list[str] = []
 
         for object in list_object:
             model_dict = object.model_dump(mode="json")
 
             for k, v in mapping_dict.items():
-                update_batch.append(
-                    {
-                        "range": f"{v}{object.index}",
-                        "values": [[model_dict[k]]],
-                    }
+                update_cell = f"{v}{object.index}"
+                update_cells.append(update_cell)
+                gsheet_cache_manager.update_value(
+                    sheet_id=sheet_id,
+                    sheet_name=sheet_name,
+                    cell=update_cell,
+                    value=model_dict[k],
                 )
 
-        if len(list_object) > 0:
-            worksheet.batch_update(
-                update_batch, value_input_option=ValueInputOption.user_entered
+        @classmethod
+        def flush_batch_to_sheet(
+            cls,
+            sheet_id: str,
+            sheet_name: str,
+            list_object: list[Self],
+        ) -> None:
+            """
+            Batch flush multiple rows in the sheet with the provided list of model instances.
+            Args:
+                sheet_id (str): The ID of the Google Sheet.
+                sheet_name (str): The name of the worksheet.
+                list_object (list[Self]): List of model instances to flush.
+            Returns:
+                None
+            """
+            mapping_dict = cls.updated_mapping_fields()
+            update_cells: list[str] = []
+
+            for object in list_object:
+                for k, v in mapping_dict.items():
+                    update_cell = f"{v}{object.index}"
+                    update_cells.append(update_cell)
+
+            gsheet_cache_manager.flush_to_sheet(
+                sheet_id=sheet_id,
+                sheet_name=sheet_name,
+                cells=update_cells,
             )
-
-    @retry_on_fail(max_retries=3, sleep_interval=30)
-    def update(
-        self,
-    ) -> None:
-        """
-        Update the current row in the sheet with the model's data.
-        Returns:
-            None
-        """
-        mapping_dict = self.updated_mapping_fields()
-        model_dict = self.model_dump(mode="json")
-
-        worksheet = self.get_worksheet(
-            sheet_id=self.sheet_id, sheet_name=self.sheet_name
-        )
-
-        update_batch = []
-        for k, v in mapping_dict.items():
-            update_batch.append(
-                {
-                    "range": f"{v}{self.index}",
-                    "values": [[model_dict[k]]],
-                }
-            )
-
-        worksheet.batch_update(
-            update_batch, value_input_option=ValueInputOption.user_entered
-        )
 
     @classmethod
-    @retry_on_fail(max_retries=5, sleep_interval=30)
-    def update_note_message(
+    def update_note(
         cls,
         sheet_id: str,
         sheet_name: str,
         index: int,
-        messages: str,
-    ):
-        """
-        Update the note message for a specific row in the sheet.
-        Args:
-            sheet_id (str): The ID of the Google Sheet.
-            sheet_name (str): The name of the worksheet.
-            index (int): The row index to update.
-            messages (str): The message to write.
-        Raises:
-            SheetError: If the note message cannot be updated.
-        """
+        note: str,
+    ) -> None:
+        col_name = None
         for field_name, field_info in cls.model_fields.items():
             if hasattr(field_info, "metadata"):
                 for metadata in field_info.metadata:
-                    if COL_META in metadata and IS_NOTE_META in metadata:
-                        worksheet = cls.get_worksheet(
-                            sheet_id=sheet_id,
-                            sheet_name=sheet_name,
-                        )
+                    if IS_NOTE_META in metadata and metadata[IS_NOTE_META]:
+                        col_name = metadata[COL_META]
+                        break
+            if col_name is not None:
+                break
 
-                        worksheet.batch_update(
-                            [
-                                {
-                                    "range": f"{metadata[COL_META]}{index}",
-                                    "values": [[messages]],
-                                }
-                            ],
-                            value_input_option=ValueInputOption.user_entered,
-                        )
-                        return
+        if col_name is None:
+            raise SheetError("No note column found in the model.")
 
-        raise SheetError("Can't update sheet message")
-
-    @classmethod
-    @retry_on_fail(max_retries=5, sleep_interval=30)
-    def batch_update_note_message(
-        cls,
-        sheet_id: str,
-        sheet_name: str,
-        update_payloads: list[NoteMessageUpdatePayload],
-    ):
-        """
-        Batch update note messages for multiple rows in the sheet.
-        Args:
-            sheet_id (str): The ID of the Google Sheet.
-            sheet_name (str): The name of the worksheet.
-            update_payloads (list[NoteMessageUpdatePayload]): List of payloads containing row indexes and messages.
-        Raises:
-            SheetError: If the note messages cannot be updated.
-        """
-        for field_name, field_info in cls.model_fields.items():
-            if hasattr(field_info, "metadata"):
-                for metadata in field_info.metadata:
-                    if (
-                        COL_META in metadata
-                        and IS_NOTE_META in metadata
-                        and metadata[IS_NOTE_META]
-                    ):
-                        worksheet = cls.get_worksheet(
-                            sheet_id=sheet_id,
-                            sheet_name=sheet_name,
-                        )
-
-                        batch: list[dict] = []
-                        for payload in update_payloads:
-                            batch.append(
-                                {
-                                    "range": f"{metadata[COL_META]}{payload.index}",
-                                    "values": [[payload.message]],
-                                }
-                            )
-                        worksheet.batch_update(
-                            batch, value_input_option=ValueInputOption.user_entered
-                        )
-                        return
-
-        raise SheetError("Can't update sheet message")
-
-    @classmethod
-    @retry_on_fail(max_retries=5, sleep_interval=30)
-    def free_style_batch_update(
-        cls,
-        sheet_id: str,
-        sheet_name: str,
-        update_payloads: list[BatchCellUpdatePayload],
-    ):
-        """
-        Batch update arbitrary cells in the sheet with provided values.
-        Args:
-            sheet_id (str): The ID of the Google Sheet.
-            sheet_name (str): The name of the worksheet.
-            update_payloads (list[BatchCellUpdatePayload]): List of payloads specifying cell and value.
-        """
-        worksheet = cls.get_worksheet(sheet_id=sheet_id, sheet_name=sheet_name)
-        batch: list[dict] = []
-        for payload in update_payloads:
-            batch.append(
-                {
-                    "range": payload.cell,
-                    "values": [[payload.value]],
-                }
-            )
-
-        worksheet.batch_update(batch, value_input_option=ValueInputOption.user_entered)
-
-    @classmethod
-    @retry_on_fail(max_retries=5, sleep_interval=10)
-    def get_cell_value(
-        cls,
-        sheet_id: str,
-        sheet_name: str,
-        cell: str,
-    ) -> Any | None:
-        """
-        Retrieve the value of a specific cell from the sheet.
-        Args:
-            sheet_id (str): The ID of the Google Sheet.
-            sheet_name (str): The name of the worksheet.
-            cell (str): The cell reference (e.g., 'A1').
-        Returns:
-            Any | None: The value of the cell, or None if not found.
-        """
-        res = gsheet_client.http_client.values_get(
-            params={"valueRenderOption": "UNFORMATTED_VALUE"},
-            id=sheet_id,
-            range=f"{sheet_name}!{cell}",
+        cell = f"{col_name}{index}"
+        gsheet_cache_manager.update_value(
+            sheet_id=sheet_id,
+            sheet_name=sheet_name,
+            cell=cell,
+            value=note,
         )
-
-        stock = res.get("values", None)
-        if stock:
-            return stock[0][0]
-
-        return None
-
-    @classmethod
-    @retry_on_fail(max_retries=5, sleep_interval=10)
-    def get_all_cells_dict(
-        cls,
-        sheet_id: str,
-        sheet_name: str,
-    ) -> dict[str, dict[int, Cell]]:
-        """
-        Retrieves all cells from a specified worksheet and organizes them into a nested dictionary.
-
-        Args:
-            sheet_id (str): The unique identifier of the sheet.
-            sheet_name (str): The name of the worksheet within the sheet.
-
-        Returns:
-            dict[str, dict[int, Cell]]: A dictionary where each key is a column label (A1 notation),
-            and each value is another dictionary mapping row numbers to Cell objects.
-
-        Example:
-            {
-                "A": {1: Cell(...), 2: Cell(...)},
-                "B": {1: Cell(...), 2: Cell(...)}
-            }
-        """
-        worksheet = cls.get_worksheet(sheet_id=sheet_id, sheet_name=sheet_name)
-        all_cells = worksheet.get_all_cells()
-
-        cells_dict: dict[str, dict[int, Cell]] = {}
-
-        for cell in all_cells:
-            col_a1 = fri_col_index_to_col_a1(cell.col)
-            if col_a1 not in cells_dict:
-                cells_dict[col_a1] = {}
-            cells_dict[col_a1][cell.row] = cell
-
-        return cells_dict
 
 
 class RowModel(ColSheetModel):
@@ -465,9 +230,9 @@ class RowModel(ColSheetModel):
     DONGIAGIAM_MIN: Annotated[float, {COL_META: "I"}]
     DONGIAGIAM_MAX: Annotated[float, {COL_META: "J"}]
     DONGIA_LAMTRON: Annotated[int, {COL_META: "K"}]
-    IDSHEET_MIN: Annotated[str | None, {COL_META: "L"}] = None
-    SHEET_MIN: Annotated[str | None, {COL_META: "M"}] = None
-    CELL_MIN: Annotated[str | None, {COL_META: "N"}] = None
+    IDSHEET_MIN: Annotated[str, {COL_META: "L"}]
+    SHEET_MIN: Annotated[str, {COL_META: "M"}]
+    CELL_MIN: Annotated[str, {COL_META: "N"}]
     IDSHEET_MAX: Annotated[str | None, {COL_META: "O"}] = None
     SHEET_MAX: Annotated[str | None, {COL_META: "P"}] = None
     CELL_MAX: Annotated[str | None, {COL_META: "Q"}] = None
@@ -482,75 +247,86 @@ class RowModel(ColSheetModel):
     EXCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Z"}] = None
 
     def min_price(self) -> float:
-        if not self.IDSHEET_MIN or not self.SHEET_MIN or not self.CELL_MIN:
-            raise SheetError("Missing MIN price configuration")
-        
-        g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
-
-        res = g_client.http_client.values_get(
-            id=self.IDSHEET_MIN, range=f"{self.SHEET_MIN}!{self.CELL_MIN}"
+        gsheet_cache_manager.add_sheet(
+            sheet_id=self.IDSHEET_MIN,
+            sheet_name=self.SHEET_MIN,
         )
 
-        min_price = res.get("values", None)
+        min_value = gsheet_cache_manager.get_value(
+            sheet_id=self.IDSHEET_MIN, sheet_name=self.SHEET_MIN, cell=self.CELL_MIN
+        )
 
-        if min_price:
-            return float(min_price[0][0])
+        if min_value is not None:
+            return float(min_value)
 
         raise SheetError(
             f"{self.IDSHEET_MIN}->{self.SHEET_MIN}->{self.CELL_MIN} is None"
         )
 
     def max_price(self) -> float | None:
-        if not self.IDSHEET_MAX or not self.SHEET_MAX or not self.CELL_MAX:
+        if self.IDSHEET_MAX is None or self.SHEET_MAX is None or self.CELL_MAX is None:
             return None
 
-        g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
-
-        res = g_client.http_client.values_get(
-            id=self.IDSHEET_MAX, range=f"{self.SHEET_MAX}!{self.CELL_MAX}"
+        gsheet_cache_manager.add_sheet(
+            sheet_id=self.IDSHEET_MAX,
+            sheet_name=self.SHEET_MAX,
         )
-        max_price = res.get("values", None)
-        if max_price:
-            return float(max_price[0][0])
+
+        max_value = gsheet_cache_manager.get_value(
+            sheet_id=self.IDSHEET_MAX, sheet_name=self.SHEET_MAX, cell=self.CELL_MAX
+        )
+        if max_value is not None:
+            return float(max_value)
 
         return None
 
     def stock(self) -> int:
         if not self.IDSHEET_STOCK or not self.SHEET_STOCK or not self.CELL_STOCK:
             raise SheetError("Missing STOCK configuration")
-        
-        g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
 
-        res = g_client.http_client.values_get(
-            id=self.IDSHEET_STOCK, range=f"{self.SHEET_STOCK}!{self.CELL_STOCK}"
+        gsheet_cache_manager.add_sheet(
+            sheet_id=self.IDSHEET_STOCK,
+            sheet_name=self.SHEET_STOCK,
+        )
+        stock_value = gsheet_cache_manager.get_value(
+            sheet_id=self.IDSHEET_STOCK,
+            sheet_name=self.SHEET_STOCK,
+            cell=self.CELL_STOCK,
         )
 
-        stock = res.get("values", None)
-        if stock:
-            return int(stock[0][0])
+        if stock_value is not None:
+            return int(stock_value)
 
         raise SheetError(
             f"{self.IDSHEET_STOCK}->{self.SHEET_STOCK}->{self.CELL_STOCK} is None"
         )
 
     def blacklist(self) -> list[str]:
-        if not self.IDSHEET_BLACKLIST or not self.SHEET_BLACKLIST or not self.CELL_BLACKLIST:
+        if (
+            not self.IDSHEET_BLACKLIST
+            or not self.SHEET_BLACKLIST
+            or not self.CELL_BLACKLIST
+        ):
             return []
-        
-        g_client = service_account(ROOT_PATH.joinpath(config.KEYS_PATH))
 
-        spreadsheet = g_client.open_by_key(self.IDSHEET_BLACKLIST)
+        gsheet_cache_manager.add_sheet(
+            sheet_id=self.IDSHEET_BLACKLIST,
+            sheet_name=self.SHEET_BLACKLIST,
+        )
 
-        worksheet = spreadsheet.worksheet(self.SHEET_BLACKLIST)
+        blacklist = gsheet_cache_manager.get_range(
+            sheet_id=self.IDSHEET_BLACKLIST,
+            sheet_name=self.SHEET_BLACKLIST,
+            a1_range=self.CELL_BLACKLIST,
+        )
 
-        blacklist = worksheet.batch_get([self.CELL_BLACKLIST])[0]
         if blacklist:
             res = []
             for blist in blacklist:
                 for i in blist:
                     res.append(i)
             return res
-        
+
         return []
 
     def include_keywords(self) -> list[str] | None:
@@ -574,16 +350,20 @@ class RowModel(ColSheetModel):
     @classmethod
     @retry_on_fail(max_retries=5, sleep_interval=10)
     def get_run_indexes(
-        cls, sheet_id: str, sheet_name: str, col_index: int
+        cls, sheet_id: str, sheet_name: str, col_range: str
     ) -> list[int]:
-        sheet = cls.get_worksheet(sheet_id=sheet_id, sheet_name=sheet_name)
         run_indexes = []
-        check_col = sheet.col_values(col_index)
+        check_col = gsheet_cache_manager.get_range(
+            sheet_id=sheet_id,
+            sheet_name=sheet_name,
+            a1_range=col_range,
+        )
         for idx, value in enumerate(check_col):
             idx += 1
-            if not isinstance(value, str):
-                value = str(value)
-            if value in [type.value for type in CheckType]:
+            _value = value[0]
+            if not isinstance(_value, str):
+                _value = str(_value)
+            if _value in [type.value for type in CheckType]:
                 run_indexes.append(idx)
 
         return run_indexes

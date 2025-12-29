@@ -1,7 +1,6 @@
 from app import logger
-from app.service.data_cache import CachedRow
 from app.shared.enums import OfferType
-
+from app.sheet.models import RowModel
 from .account import account_process
 from .currency import currency_process
 from .item import item_process
@@ -9,8 +8,8 @@ from .item import item_process
 
 def process(
     sb,
-    run_row: CachedRow,
-) -> None:
+    run_row: RowModel,
+) -> RowModel | None:
     """Process a single row from the spreadsheet."""
     logger.info(f"{run_row.Product_name} is being processed")
     logger.info(f"Category: {run_row.Category}")

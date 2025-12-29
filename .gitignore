@@ -8,20 +8,28 @@ wheels/
 
 # venv
 .venv
-venv
-
-# .env
-.env
-settings.env
 
 # logs
 **/logs/*
 !**/logs/.gitkeep
 
-
 # keys
 keys.json
 
-# data
+# Setting.envs
+settings.env
+
+# Downloaded_files
+downloaded_files/
+
+# Data files
 **/data/*
 !**/data/.gitkeep
+
+# Keys folder
+# Data files
+**/keys/*
+!**/keys/.gitkeep
+
+# GSheet cache
+.gsheet_cache/

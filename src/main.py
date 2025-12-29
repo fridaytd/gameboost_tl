@@ -3,106 +3,29 @@ import time
 from datetime import datetime
 from queue import Queue
 from threading import Thread
-from typing import Optional
 
 from pydantic import ValidationError
 from seleniumbase import SB
 
+
 from app import config, logger
 from app.processes.main_process import process
-from app.service.data_cache import CachedRow, get_cache, initialize_cache
 from app.shared.decorators import retry_on_fail
 from app.shared.paths import SRC_PATH
-from app.shared.utils import formated_datetime
+from app.shared.utils import formated_datetime, sleep_for
 from app.sheet.models import RowModel
-
-
-class BrowserManager:
-    def __init__(self):
-        self.browsers = []
-
-    def create_browser(self, **kwargs):
-        """Create a new browser instance and return its index"""
-        sb_context = SB(**kwargs)
-        sb = sb_context.__enter__()  # Manually enter the context
-        self.browsers.append((sb_context, sb))
-        return len(self.browsers) - 1
-
-    def get(self, index):
-        """Get browser by index"""
-        return self.browsers[index][1]  # Return the actual SB instance
-
-    def create_multiple(self, count, **kwargs):
-        """Create multiple browsers at once"""
-        indices = []
-        for _ in range(count):
-            indices.append(self.create_browser(**kwargs))
-        return indices
-
-    def close_all(self):
-        """Close all browser instances"""
-        for sb_context, sb in self.browsers:
-            try:
-                sb_context.__exit__(None, None, None)  # Properly exit the context
-            except Exception as e:
-                print(f"Error closing browser: {e}")
-        self.browsers.clear()
-
+from app.shared.browser_manager import BrowserManager
+from app.gsheet_cache_manager import (
+    initialize_gsheet_cache_manager,
+    gsheet_cache_manager,
+)
 
 browser_manager = BrowserManager()
 for _ in range(config.THREAD_NUMBER):
     browser_manager.create_browser(uc=True, headless=True, disable_js=True)
 
 
-def update_error_to_cache(index: int, error_msg: str):
-    try:
-        now = datetime.now()
-        cache = get_cache()
-        cache.update_fields(
-            index=index,
-            note=f"{formated_datetime(now)}: {error_msg}",
-            last_update=formated_datetime(now),
-        )
-    except Exception as e:
-        logger.exception(f"Failed to update error to cache: {e}")
-
-
-def validate_required_fields(
-    cached_row: CachedRow, thread_prefix: str
-) -> tuple[bool, Optional[str]]:
-    required_fields = {
-        "Category": "Category",
-        "Product_link": "Product_link",
-        "Check_product_compare": "CHECK_PRODUCT_COMPARE",
-        "DONGIAGIAM_MIN": "DONGIAGIAM_MIN",
-        "DONGIAGIAM_MAX": "DONGIAGIAM_MAX",
-        "DONGIA_LAMTRON": "DONGIA_LAMTRON",
-        "min_price_value": "MIN_PRICE",
-        "stock_value": "STOCK",
-        "blacklist_value": "BLACKLIST",
-        "Relax_time": "RELAX_TIME",
-    }
-
-    for field_name, display_name in required_fields.items():
-        value = getattr(cached_row, field_name, None)
-
-        # Check None
-        if value is None:
-            error_msg = f"Giá trị {display_name} đang rỗng. Vui lòng cập nhật!"
-            logger.error(f"{thread_prefix} Validation failed: {error_msg}")
-            return False, error_msg
-
-        # Check empty string for string fields
-        # if isinstance(value, str) and not value.strip():
-        #     error_msg = f"Giá trị {display_name} đang rỗng. Vui lòng cập nhật!"
-        #     logger.error(f"{thread_prefix} Validation failed: {error_msg}")
-        #     return False, error_msg
-
-    logger.info(f"{thread_prefix} All required fields are not empty")
-    return True, None
-
-
-def worker(index_queue: Queue, cookies_path: str, worker_id: int):
+def worker(index_queue: Queue, result_queue: Queue, cookies_path: str, worker_id: int):
     thread_prefix = f"[Worker-{worker_id}]"
 
     sb = browser_manager.get(worker_id - 1)
@@ -118,38 +41,48 @@ def worker(index_queue: Queue, cookies_path: str, worker_id: int):
 
         logger.info(f"{thread_prefix} INDEX (ROW): {index}")
         try:
-            cache = get_cache()
-            cached_row = cache.get(index)
-
-            if cached_row is None:
-                logger.error(f"{thread_prefix} Row {index} not found in cache")
-                index_queue.task_done()
-                continue
-
-            is_valid, error_message = validate_required_fields(
-                cached_row, thread_prefix
+            run_row = RowModel.get(
+                sheet_id=config.SHEET_ID,
+                sheet_name=config.SHEET_NAME,
+                index=index,
             )
-            if not is_valid:
-                logger.error(
-                    f"{thread_prefix} Row {index} validation failed: {error_message}"
-                )
-                update_error_to_cache(index, error_message)
-                index_queue.task_done()
-                continue
 
-            process(sb, cached_row)
-            logger.info(f"{thread_prefix} Sleep for {cached_row.Relax_time}s")
-            time.sleep(cached_row.Relax_time)
+            updated_product = process(sb, run_row)
+            if updated_product:
+                result_queue.put(updated_product)
 
         except ValidationError as e:
             logger.exception(f"{thread_prefix} VALIDATION ERROR AT ROW: {index}")
             logger.exception(e.errors())
-            update_error_to_cache(index, f"VALIDATION ERROR: {e.errors()}")
+            update_mapping = RowModel.updated_mapping_fields()
+            gsheet_cache_manager.update_value(
+                sheet_id=config.SHEET_ID,
+                sheet_name=config.SHEET_NAME,
+                cell=f"{update_mapping['Note']}{index}",
+                value=f"VALIDATION ERROR: {e.errors()}",
+            )
+            gsheet_cache_manager.update_value(
+                sheet_id=config.SHEET_ID,
+                sheet_name=config.SHEET_NAME,
+                cell=f"{update_mapping['Last_update']}{index}",
+                value=formated_datetime(datetime.now()),
+            )
 
         except Exception as e:
             logger.exception(f"{thread_prefix} FAILED AT ROW: {index}")
-            update_error_to_cache(index, f"FAILED: {e}")
-            time.sleep(20)
+            update_mapping = RowModel.updated_mapping_fields()
+            gsheet_cache_manager.update_value(
+                sheet_id=config.SHEET_ID,
+                sheet_name=config.SHEET_NAME,
+                cell=f"{update_mapping['Note']}{index}",
+                value=f"ERROR: {e}",
+            )
+            gsheet_cache_manager.update_value(
+                sheet_id=config.SHEET_ID,
+                sheet_name=config.SHEET_NAME,
+                cell=f"{update_mapping['Last_update']}{index}",
+                value=formated_datetime(datetime.now()),
+            )
 
         finally:
             index_queue.task_done()
@@ -158,8 +91,10 @@ def worker(index_queue: Queue, cookies_path: str, worker_id: int):
 def main():
     logger.info("Start running")
 
+    initialize_gsheet_cache_manager()
+
     run_indexes = RowModel.get_run_indexes(
-        sheet_id=config.SHEET_ID, sheet_name=config.SHEET_NAME, col_index=1
+        sheet_id=config.SHEET_ID, sheet_name=config.SHEET_NAME, col_range="A:A"
     )
 
     if not run_indexes:
@@ -169,9 +104,6 @@ def main():
     thread_number = config.THREAD_NUMBER
     logger.info(f"Run indexes: {run_indexes}")
     logger.info(f"Thread number: {thread_number}")
-
-    cache_file = SRC_PATH / "data" / "cache.csv"
-    initialize_cache(cache_file, config.SHEET_ID, config.SHEET_NAME, run_indexes)
 
     cookies_path = str(SRC_PATH / "data" / "cookies.txt")
 
@@ -189,6 +121,7 @@ def main():
         logger.info(f"{'=' * 50}\n")
 
         index_queue = Queue()
+        result_queue = Queue()
 
         for index in batch:
             index_queue.put(index)
@@ -197,7 +130,7 @@ def main():
         for i in range(thread_number):
             t = Thread(
                 target=worker,
-                args=(index_queue, cookies_path, i + 1),
+                args=(index_queue, result_queue, cookies_path, i + 1),
                 daemon=True,
                 name=f"Worker-{i + 1}",
             )
@@ -215,16 +148,46 @@ def main():
             if t.is_alive():
                 logger.warning(f"Thread {t.name} did not finish in time!!!!!!!!!!")
 
+        # Update products one by one sequentially
+        logger.info(
+            f"Updating products sequentially for batch {batch_idx}/{total_batches}..."
+        )
+        updated_count = 0
+        time_sleep = 0.5
+        while not result_queue.empty():
+            product = result_queue.get()
+            if product.Relax_time and product.Relax_time > time_sleep:
+                time_sleep = product.Relax_time
+            product.update()
+            updated_count += 1
+            logger.info(
+                f"Updated product at row {product.index} ({updated_count} products updated)"
+            )
+
+        logger.info(
+            f"Total {updated_count} products updated for batch {batch_idx}/{total_batches}"
+        )
+
         logger.info(f"Flushing batch {batch_idx}/{total_batches} to Google Sheet...")
-        cache = get_cache()
-        cache.flush_updates_to_sheet(config.SHEET_ID, config.SHEET_NAME)
+        update_cells: list[str] = []
+        for index in batch:
+            update_mappping = RowModel.updated_mapping_fields()
+            update_cells.append(f"{update_mappping['Last_update']}{index}")
+            update_cells.append(f"{update_mappping['Note']}{index}")
+        gsheet_cache_manager.flush_to_sheet(
+            sheet_id=config.SHEET_ID,
+            sheet_name=config.SHEET_NAME,
+            cells=update_cells,
+        )
         logger.info(f"Batch {batch_idx}/{total_batches} flushed successfully")
+        sleep_for(time_sleep)
 
     logger.info(
         f"Completed processing {len(run_indexes)} rows in {total_batches} batches"
     )
     logger.info(f"Sleep for {os.getenv('RELAX_TIME_EACH_ROUND', '10')}s")
     time.sleep(int(os.getenv("RELAX_TIME_EACH_ROUND", "10")))
+    gsheet_cache_manager.clear_all_sheets()
 
 
 @retry_on_fail(max_retries=10, sleep_interval=1)
