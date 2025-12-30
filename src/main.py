@@ -5,13 +5,14 @@ from queue import Queue
 from threading import Thread
 
 from pydantic import ValidationError
+from pydantic.type_adapter import R
 from seleniumbase import SB
 
 
 from app import config, logger
 from app.processes.main_process import process
 from app.shared.decorators import retry_on_fail
-from app.shared.paths import SRC_PATH
+from app.shared.paths import SRC_PATH, ROOT_PATH
 from app.shared.utils import formated_datetime, sleep_for
 from app.sheet.models import RowModel
 from app.shared.browser_manager import BrowserManager
@@ -105,7 +106,7 @@ def main():
     logger.info(f"Run indexes: {run_indexes}")
     logger.info(f"Thread number: {thread_number}")
 
-    cookies_path = str(SRC_PATH / "data" / "cookies.txt")
+    cookies_path = str(ROOT_PATH / "cookies" / "cookies.txt")
 
     batches = [
         run_indexes[i : i + thread_number]
@@ -212,14 +213,14 @@ def set_cookies():
         logger.info("Click Save Changes")
         sb.cdp.find_element_by_text("Save Changes").click()
         sb.cdp.sleep(2)
-        sb.cdp.save_cookies(SRC_PATH / "data" / "cookies.txt")
+        sb.cdp.save_cookies(ROOT_PATH / "cookies" / "cookies.txt")
 
 
 if __name__ == "__main__":
     logger.info("=== STARTING SCRIPT ===")
 
     logger.info("Setting cookies...")
-    if not (SRC_PATH / "data" / "cookies.txt").exists():
+    if not (ROOT_PATH / "cookies" / "cookies.txt").exists():
         set_cookies()
     logger.info("Cookies set.")
     while True:
