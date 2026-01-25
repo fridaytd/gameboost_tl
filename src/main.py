@@ -5,7 +5,6 @@ from queue import Queue
 from threading import Thread
 
 from pydantic import ValidationError
-from pydantic.type_adapter import R
 from seleniumbase import SB
 
 
@@ -204,11 +203,12 @@ def set_cookies():
         logger.info("Click change language and currency")
         sb.cdp.click('span:contains("Change language and currency")')
         sb.cdp.sleep(0.5)
-        logger.info("Click currency")
-        sb.cdp.mouse_click('label:contains("Currency") ~ div')
-        sb.cdp.sleep(0.5)
+        # logger.info("Click currency")
+        # sb.cdp.mouse_click('label:contains("Currency") ~ div')
+        # sb.cdp.sleep(0.5)
         logger.info("Click Euro")
-        sb.cdp.mouse_click("#multiselect-option-EUR")
+        # sb.cdp.mouse_click("#multiselect-option-EUR")
+        sb.cdp.click('label:contains("EUR")')
         sb.cdp.sleep(0.5)
         logger.info("Click Save Changes")
         sb.cdp.find_element_by_text("Save Changes").click()
