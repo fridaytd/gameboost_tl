@@ -220,8 +220,8 @@ if __name__ == "__main__":
     logger.info("=== STARTING SCRIPT ===")
 
     logger.info("Setting cookies...")
-    if not (ROOT_PATH / "cookies" / "cookies.txt").exists():
-        set_cookies()
+    # if not (ROOT_PATH / "cookies" / "cookies.txt").exists():
+    set_cookies()
     logger.info("Cookies set.")
     while True:
         main()
