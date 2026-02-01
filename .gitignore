@@ -34,4 +34,5 @@ downloaded_files/
 # GSheet cache
 .gsheet_cache/
 
-cookies
+**/cookies/*
+!**/cookies/.gitkeep
