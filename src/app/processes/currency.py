@@ -104,7 +104,7 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
         return run_row
 
     # Get current price from API
-    my_item_offer = gameboost_api_client.get_item_offer(run_row.Product_link)
+    my_item_offer = gameboost_api_client.get_currency_offer(run_row.Product_link)
     current_price = my_item_offer.data.price_eur.amount
     # Calculate new price
     if run_row.Check_product_compare == "2" and current_price < offer_min_price.price:

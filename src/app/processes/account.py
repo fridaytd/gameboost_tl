@@ -108,9 +108,9 @@ def account_process(sb, run_row: RowModel) -> RowModel | None:
         run_row.Last_update = formated_datetime(datetime.now())
         return run_row
 
-    my_item_offer = gameboost_api_client.get_item_offer(run_row.Product_link)
-    logger.debug(f"my_item_offer: {my_item_offer}")
-    current_price = my_item_offer.data.price_eur.amount
+    my_account_offer = gameboost_api_client.get_account_offer(run_row.Product_link)
+    logger.debug(f"my_account_offer: {my_account_offer}")
+    current_price = my_account_offer.data.price.amount
 
     # Calculate new price
     if run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
