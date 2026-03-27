@@ -214,6 +214,7 @@ def set_cookies():
         sb.cdp.find_element_by_text("Save Changes").click()
         sb.cdp.sleep(2)
         sb.cdp.save_cookies(ROOT_PATH / "cookies" / "cookies.txt")
+        logger.info("Cookies saved successfully.")
 
 
 if __name__ == "__main__":
