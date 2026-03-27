@@ -194,7 +194,7 @@ def main():
 def set_cookies():
     with SB(
         uc=True,
-        headless=True,
+        headless=False,
         disable_js=False,
     ) as sb:
         sb.activate_cdp_mode("https://gameboost.com")
