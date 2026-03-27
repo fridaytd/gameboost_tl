@@ -198,8 +198,8 @@ def set_cookies():
         disable_js=False,
     ) as sb:
         sb.activate_cdp_mode("https://gameboost.com")
-        sb.cdp.sleep(2)
-        sb.cdp.wait_for_text("Change language and currency")
+        sb.cdp.sleep(5)
+        sb.cdp.wait_for_text("Change language and currency", timeout=50000)
         logger.info("Click change language and currency")
         sb.cdp.click('span:contains("Change language and currency")')
         sb.cdp.sleep(0.5)
