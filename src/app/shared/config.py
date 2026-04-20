@@ -23,6 +23,9 @@ class Config(BaseModel):
     #Thread number
     THREAD_NUMBER: int
 
+    # Test mode: if True, skip API calls and only update the sheet
+    TEST_MODE: bool = False
+
     @staticmethod
     def from_env(dotenv_path: str = "settings.env") -> "Config":
         load_dotenv(dotenv_path)

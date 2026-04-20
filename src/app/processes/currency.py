@@ -28,16 +28,20 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
         min_price = run_row.min_price()
         max_price = run_row.max_price()
         stock = run_row.stock()
+        min_qty = run_row.calc_min_quantity(min_price)
 
-        res = gameboost_api_client.update_currency_offer(
-            currency_offer_id=run_row.Product_link,
-            price=min_price,
-            stock=stock,
-        )
+        if not config.TEST_MODE:
+            res = gameboost_api_client.update_currency_offer(
+                currency_offer_id=run_row.Product_link,
+                price=min_price,
+                stock=stock,
+                min_quantity=min_qty,
+            )
+            logger.info(f"Update currency offer response: {res}")
+        else:
+            logger.info(f"[TEST_MODE] Skipping API call for {run_row.Product_name}")
 
-        logger.info(f"Update currency offer response: {res}")
-
-        note = f"{formated_datetime(now)}: Không so sánh, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={min_price}, Pricemax={max_price}"
+        note = f"{formated_datetime(now)}: Không so sánh, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={min_price}, Pricemax={max_price}, MinQty={min_qty}"
         run_row.Note = note
         run_row.Last_update = formated_datetime(datetime.now())
         return run_row
@@ -53,16 +57,20 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
         min_price = run_row.min_price()
         max_price = run_row.max_price()
         stock = run_row.stock()
+        min_qty = run_row.calc_min_quantity(min_price)
 
-        res = gameboost_api_client.update_currency_offer(
-            currency_offer_id=run_row.Product_link,
-            price=min_price,
-            stock=stock,
-        )
+        if not config.TEST_MODE:
+            res = gameboost_api_client.update_currency_offer(
+                currency_offer_id=run_row.Product_link,
+                price=min_price,
+                stock=stock,
+                min_quantity=min_qty,
+            )
+            logger.info(f"Update currency offer response: {res}")
+        else:
+            logger.info(f"[TEST_MODE] Skipping API call for {run_row.Product_name}")
 
-        logger.info(f"Update currency offer response: {res}")
-
-        note = f"{formated_datetime(now)}: Không thể quét giá: {e}, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={min_price}, Pricemax={max_price}"
+        note = f"{formated_datetime(now)}: Không thể quét giá: {e}, Cập nhật theo giá min. PRICE={min_price}, STOCK={stock}, Pricemin={min_price}, Pricemax={max_price}, MinQty={min_qty}"
         run_row.Note = note
         run_row.Last_update = formated_datetime(datetime.now())
         return run_row
@@ -87,27 +95,34 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
 
     if len(valid_offers) == 0 or offer_min_price is None:
         target_price = max_price if max_price else min_price
+        min_qty = run_row.calc_min_quantity(target_price)
 
         # No valid offers, update to min price
-        res = gameboost_api_client.update_currency_offer(
-            currency_offer_id=run_row.Product_link,
-            price=target_price,
-            stock=stock,
-        )
-
-        logger.info(f"Update currency offer response: {res}")
+        if not config.TEST_MODE:
+            res = gameboost_api_client.update_currency_offer(
+                currency_offer_id=run_row.Product_link,
+                price=target_price,
+                stock=stock,
+                min_quantity=min_qty,
+            )
+            logger.info(f"Update currency offer response: {res}")
+        else:
+            logger.info(f"[TEST_MODE] Skipping API call for {run_row.Product_name}")
 
         lower_price_offers = find_lower_price_offers(crwl_offers, min_price)
-        note = f"{formated_datetime(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {target_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}\nSeller có giá thấp hơn: {', '.join([f'{offer.seller} - {offer.price}' for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}"
+        note = f"{formated_datetime(now)}: Không có sản phẩm hợp lệ so sánh, Giá đã cập nhật thành công; Price = {target_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}, MinQty={min_qty}\nSeller có giá thấp hơn: {', '.join([f'{offer.seller} - {offer.price}' for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}"
         run_row.Note = note
         run_row.Last_update = formated_datetime(datetime.now())
         return run_row
 
     # Get current price from API
-    my_item_offer = gameboost_api_client.get_currency_offer(run_row.Product_link)
-    current_price = my_item_offer.data.price_eur.amount
+    if config.TEST_MODE:
+        current_price = None
+    else:
+        my_item_offer = gameboost_api_client.get_currency_offer(run_row.Product_link)
+        current_price = my_item_offer.data.price_eur.amount
     # Calculate new price
-    if run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
+    if not config.TEST_MODE and run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
         note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
         run_row.Note = note
         run_row.Last_update = formated_datetime(datetime.now())
@@ -120,16 +135,20 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
         )
 
     # Update price if changed
-    res = gameboost_api_client.update_currency_offer(
-        currency_offer_id=run_row.Product_link,
-        price=new_price,
-        stock=stock,
-    )
-
-    logger.info(f"Update currency offer response: {res}")
+    min_qty = run_row.calc_min_quantity(new_price)
+    if not config.TEST_MODE:
+        res = gameboost_api_client.update_currency_offer(
+            currency_offer_id=run_row.Product_link,
+            price=new_price,
+            stock=stock,
+            min_quantity=min_qty,
+        )
+        logger.info(f"Update currency offer response: {res}")
+    else:
+        logger.info(f"[TEST_MODE] Skipping API call for {run_row.Product_name}")
 
     lower_price_offers = find_lower_price_offers(crwl_offers, new_price)
-    note = f"""{formated_datetime(now)}:Giá đã cập nhật thành công; Price = {new_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}, GiaSosanh = {offer_min_price.price:f} - Seller: {offer_min_price.seller}
+    note = f"""{formated_datetime(now)}:Giá đã cập nhật thành công; Price = {new_price:f}; Stock = {stock}; Pricemin = {min_price:f}, Pricemax = {max_price:f}, GiaSosanh = {offer_min_price.price:f} - Seller: {offer_min_price.seller}, MinQty={min_qty}
 Seller có giá thấp hơn: {", ".join([f"{offer.seller} - {offer.price:f}" for offer in lower_price_offers if offer.seller != config.MY_SELLER_NAME])}
 """
     run_row.Note = note

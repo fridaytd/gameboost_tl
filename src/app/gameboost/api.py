@@ -39,11 +39,14 @@ class GameboostClient:
         currency_offer_id: str,
         price: float,
         stock: int,
+        min_quantity: int | None = None,
     ) -> dict:
-        payload = {
+        payload: dict = {
             "price": f"{price:f}",
             "stock": stock,
         }
+        if min_quantity is not None:
+            payload["min_quantity"] = min_quantity
 
         path: str = f"{self.base_url}/currency-offers/{currency_offer_id}"
 
@@ -130,11 +133,14 @@ class GameboostClient:
         item_offer_id: str,
         price: float,
         stock: int,
+        min_quantity: int | None = None,
     ) -> dict:
-        payload = {
+        payload: dict = {
             "price": f"{price:f}",
             "stock": stock,
         }
+        if min_quantity is not None:
+            payload["min_quantity"] = min_quantity
 
         path: str = f"{self.base_url}/item-offers/{item_offer_id}"
 

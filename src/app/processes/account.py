@@ -21,6 +21,9 @@ def update_multiple_accounts(
     account_offer_ids: list[str],
     prices: float,
 ) -> None:
+    if config.TEST_MODE:
+        logger.info(f"[TEST_MODE] Skipping API calls for accounts: {account_offer_ids}")
+        return
     for account_offer_id in account_offer_ids:
         try:
             res = gameboost_api_client.update_account_offer(
@@ -108,12 +111,15 @@ def account_process(sb, run_row: RowModel) -> RowModel | None:
         run_row.Last_update = formated_datetime(datetime.now())
         return run_row
 
-    my_account_offer = gameboost_api_client.get_account_offer(run_row.Product_link)
-    logger.debug(f"my_account_offer: {my_account_offer}")
-    current_price = my_account_offer.data.price.amount
+    if config.TEST_MODE:
+        current_price = None
+    else:
+        my_account_offer = gameboost_api_client.get_account_offer(run_row.Product_link)
+        logger.debug(f"my_account_offer: {my_account_offer}")
+        current_price = my_account_offer.data.price.amount
 
     # Calculate new price
-    if run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
+    if not config.TEST_MODE and run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
         note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
         run_row.Note = note
         run_row.Last_update = formated_datetime(datetime.now())

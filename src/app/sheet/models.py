@@ -1,4 +1,6 @@
 from typing import Annotated, Final, Self, TypeVar, Generic
+import logging
+import math
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,6 +15,8 @@ T = TypeVar("T")
 COL_META: Final[str] = "col_name_xxx"
 IS_UPDATE_META: Final[str] = "is_update_xxx"
 IS_NOTE_META: Final[str] = "is_note_xxx"
+
+_logger = logging.getLogger(__name__)
 
 
 class NoteMessageUpdatePayload(BaseModel):
@@ -245,6 +249,9 @@ class RowModel(ColSheetModel):
     Relax_time: Annotated[float, {COL_META: "X"}]
     INCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Y"}] = None
     EXCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Z"}] = None
+    ISUPDATE_ORDER_MIN: Annotated[str | None, {COL_META: "AA"}] = None
+    TOTAL_ORDER_MIN: Annotated[str | None, {COL_META: "AB"}] = None
+    HESOLAMTRONMINSTOCK: Annotated[str | None, {COL_META: "AC"}] = None
 
     def min_price(self) -> float:
         gsheet_cache_manager.add_sheet(
@@ -346,6 +353,42 @@ class RowModel(ColSheetModel):
             return None
 
         return [keyword.strip() for keyword in self.EXCLUDE_KEYWORDS.split(";")]
+
+    def calc_min_quantity(self, unit_price: float) -> int | None:
+        """Calculate minimum order quantity based on TOTAL_ORDER_MIN and HESOLAMTRONMINSTOCK.
+
+        Returns None if the feature is disabled or configuration is invalid.
+        """
+        if self.ISUPDATE_ORDER_MIN != "1":
+            return None
+        try:
+            total = float(self.TOTAL_ORDER_MIN)  # type: ignore[arg-type]
+            factor = int(float(self.HESOLAMTRONMINSTOCK))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(total) or total <= 0:
+            _logger.warning(
+                "TOTAL_ORDER_MIN is invalid (%s) for row %s, skipping min_quantity update",
+                self.TOTAL_ORDER_MIN,
+                self.Product_name,
+            )
+            return None
+        if factor <= 0:
+            _logger.warning(
+                "HESOLAMTRONMINSTOCK is %s for row %s, skipping min_quantity update",
+                factor,
+                self.Product_name,
+            )
+            return None
+        if unit_price <= 0:
+            _logger.warning(
+                "unit_price is %s for row %s, skipping min_quantity update",
+                unit_price,
+                self.Product_name,
+            )
+            return None
+        raw = total / unit_price
+        return math.ceil(raw / factor) * factor
 
     @classmethod
     @retry_on_fail(max_retries=5, sleep_interval=10)

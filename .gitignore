@@ -36,3 +36,7 @@ downloaded_files/
 
 **/cookies/*
 !**/cookies/.gitkeep
+
+.claude
+_bmad
+_bmad-output
