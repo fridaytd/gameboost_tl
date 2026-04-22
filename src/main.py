@@ -22,7 +22,7 @@ from app.gsheet_cache_manager import (
 
 browser_manager = BrowserManager()
 for _ in range(config.THREAD_NUMBER):
-    browser_manager.create_browser(uc=True, headless=True, disable_js=True)
+    browser_manager.create_browser(uc=True, headless=False, disable_js=False)
 
 
 def worker(index_queue: Queue, result_queue: Queue, cookies_path: str, worker_id: int):

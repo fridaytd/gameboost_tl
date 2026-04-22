@@ -250,8 +250,9 @@ class RowModel(ColSheetModel):
     INCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Y"}] = None
     EXCLUDE_KEYWORDS: Annotated[str | None, {COL_META: "Z"}] = None
     ISUPDATE_ORDER_MIN: Annotated[str | None, {COL_META: "AA"}] = None
-    TOTAL_ORDER_MIN: Annotated[str | None, {COL_META: "AB"}] = None
-    HESOLAMTRONMINSTOCK: Annotated[str | None, {COL_META: "AC"}] = None
+    MINIMUM_QUANTITY: Annotated[str | None, {COL_META: "AB"}] = None
+    TOTAL_ORDER_MIN: Annotated[str | None, {COL_META: "AC"}] = None
+    HESOLAMTRONMINSTOCK: Annotated[str | None, {COL_META: "AD"}] = None
 
     def min_price(self) -> float:
         gsheet_cache_manager.add_sheet(
@@ -355,12 +356,28 @@ class RowModel(ColSheetModel):
         return [keyword.strip() for keyword in self.EXCLUDE_KEYWORDS.split(";")]
 
     def calc_min_quantity(self, unit_price: float) -> int | None:
-        """Calculate minimum order quantity based on TOTAL_ORDER_MIN and HESOLAMTRONMINSTOCK.
+        """Calculate minimum order quantity.
+
+        If MINIMUM_QUANTITY is provided, use it directly.
+        Otherwise, calculate from TOTAL_ORDER_MIN and HESOLAMTRONMINSTOCK.
 
         Returns None if the feature is disabled or configuration is invalid.
         """
         if self.ISUPDATE_ORDER_MIN != "1":
             return None
+
+        # Use MINIMUM_QUANTITY directly if provided
+        if self.MINIMUM_QUANTITY is not None and self.MINIMUM_QUANTITY.strip() != "":
+            try:
+                return int(float(self.MINIMUM_QUANTITY))
+            except (TypeError, ValueError):
+                _logger.warning(
+                    "MINIMUM_QUANTITY is invalid (%s) for row %s, falling back to calculation",
+                    self.MINIMUM_QUANTITY,
+                    self.Product_name,
+                )
+
+        # Fallback: calculate from TOTAL_ORDER_MIN and HESOLAMTRONMINSTOCK
         try:
             total = float(self.TOTAL_ORDER_MIN)  # type: ignore[arg-type]
             factor = int(float(self.HESOLAMTRONMINSTOCK))  # type: ignore[arg-type]

@@ -9,15 +9,40 @@ from .exceptions import CrwlError
 from .models import Offer
 
 
-def get_soup(
+@retry_on_fail(max_retries=3, sleep_interval=2)
+def get_page_data(sb) -> dict:
+
+    sb.solve_captcha()
+    sb.cdp.sleep(random.uniform(3, 3.5))
+    soup = BeautifulSoup(sb.cdp.get_page_source(), "html.parser")
+
+    # New architecture: data is in an inline <script> tag starting with {"component":
+    for script in soup.find_all("script"):
+        text = script.get_text() or ""
+        if text.startswith('{"component"'):
+            return json.loads(text)
+
+    # Fallback: old architecture with #app[data-page]
+    app_tag = soup.select_one("#app")
+    if app_tag:
+        page_data = app_tag.attrs.get("data-page", None)
+        if isinstance(page_data, str):
+            return json.loads(page_data)
+        elif page_data is not None:
+            raise CrwlError(f"Unexpected data-page type: {type(page_data)}")
+
+    raise CrwlError("Page data not found!!!")
+
+
+@retry_on_fail(max_retries=2, sleep_interval=2)
+def get_soup_and_page_data(
     sb,
     url: str,
-) -> BeautifulSoup:
+) -> dict:
     sb.get(url)
-    sb.cdp.sleep(random.uniform(1, 1.5))
-    soup = BeautifulSoup(sb.cdp.get_page_source(), "html.parser")
-    sb.cdp.sleep(random.uniform(0.3, 0.7))
-    return soup
+    sb.cdp.sleep(random.uniform(3, 3.5))
+    page_data = get_page_data(sb)
+    return page_data
 
 
 @retry_on_fail()
@@ -25,15 +50,9 @@ def currencies_extract(
     sb,
     url: str,
 ) -> list[Offer]:
-    soup = get_soup(sb, url)
-    app_tag = soup.select_one("#app")
-    if not app_tag:
-        raise CrwlError("App tag not found!!!")
 
-    page_data = app_tag.attrs.get("data-page", None)
-    if not page_data:
-        raise CrwlError("Page data not found!!!")
-    page_data = json.loads(page_data)  # type: ignore
+    page_data = get_soup_and_page_data(sb, url)
+
     props = page_data.get("props", None)
     if not props:
         raise CrwlError("Props not found!!!")
@@ -64,15 +83,8 @@ def items_extract(
     sb,
     url: str,
 ) -> list[Offer]:
-    soup = get_soup(sb, url)
-    app_tag = soup.select_one("#app")
-    if not app_tag:
-        raise CrwlError("App tag not found!!!")
+    page_data = get_soup_and_page_data(sb, url)
 
-    page_data = app_tag.attrs.get("data-page", None)
-    if not page_data:
-        raise CrwlError("Page data not found!!!")
-    page_data = json.loads(page_data)  # type: ignore
     props = page_data.get("props", None)
     if not props:
         raise CrwlError("Props not found!!!")
@@ -101,15 +113,8 @@ def accounts_extract(
     sb,
     url: str,
 ) -> list[Offer]:
-    soup = get_soup(sb, url)
-    app_tag = soup.select_one("#app")
-    if not app_tag:
-        raise CrwlError("App tag not found!!!")
+    page_data = get_soup_and_page_data(sb, url)
 
-    page_data = app_tag.attrs.get("data-page", None)
-    if not page_data:
-        raise CrwlError("Page data not found!!!")
-    page_data = json.loads(page_data)  # type: ignore
     props = page_data.get("props", None)
     if not props:
         raise CrwlError("Props not found!!!")
