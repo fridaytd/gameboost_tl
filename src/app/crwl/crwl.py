@@ -59,14 +59,17 @@ def currencies_extract(
 
     model = props.get("model", None)
     if not model:
-        raise CrwlError("Model not found!!!")
+        model = props
+
+    if "selectedCurrencyOffer" not in model and "otherSellerOffers" not in model:
+        raise CrwlError("selectedCurrencyOffer and otherSellerOffers not found!!!")
 
     list_currencies_dict: list[dict] = []
-    if "currency_offer" in model:
-        list_currencies_dict.append(model["currency_offer"])
+    if "selectedCurrencyOffer" in model:
+        list_currencies_dict.append(model["selectedCurrencyOffer"])
 
-    if "currencies" in model and "data" in model["currencies"]:
-        list_currencies_dict.extend(model["currencies"]["data"])
+    if "otherSellerOffers" in model:
+        list_currencies_dict.extend(model["otherSellerOffers"])
 
     return [
         Offer(
@@ -91,7 +94,10 @@ def items_extract(
 
     model = props.get("model", None)
     if not model:
-        raise CrwlError("Model not found!!!")
+        model = props
+
+    if "items" not in model:
+        raise CrwlError("Items not found!!!")
 
     list_items_dict = []
 
@@ -121,9 +127,12 @@ def accounts_extract(
 
     model = props.get("model", None)
     if not model:
-        raise CrwlError("Model not found!!!")
+        model = props
 
     list_accounts_dict = []
+
+    if "accounts" not in model:
+        raise CrwlError("Accounts not found!!!")
 
     if "accounts" in model and "data" in model["accounts"]:
         list_accounts_dict.extend(model["accounts"]["data"])

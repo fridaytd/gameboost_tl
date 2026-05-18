@@ -50,6 +50,7 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
     try:
         logger.info(f"Crawling at: {run_row.Product_compare}")
         crwl_offers = currencies_extract(sb, run_row.Product_compare)
+        logger.info(f"Crawled offers: {[offer.model_dump() for offer in crwl_offers]}")
 
     except Exception as e:
         # If crawl error, update by min price and return
@@ -91,8 +92,6 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
 
     offer_min_price = find_offer_min_price(valid_offers)
 
-    logger.info(f"Crawled offers: {[offer.model_dump() for offer in crwl_offers]}")
-
     if len(valid_offers) == 0 or offer_min_price is None:
         target_price = max_price if max_price else min_price
         min_qty = run_row.calc_min_quantity(target_price)
@@ -122,7 +121,11 @@ def currency_process(sb, run_row: RowModel) -> RowModel | None:
         my_item_offer = gameboost_api_client.get_currency_offer(run_row.Product_link)
         current_price = my_item_offer.data.price_eur.amount
     # Calculate new price
-    if not config.TEST_MODE and run_row.Check_product_compare == "2" and current_price < offer_min_price.price:
+    if (
+        not config.TEST_MODE
+        and run_row.Check_product_compare == "2"
+        and current_price < offer_min_price.price
+    ):
         note = f"{formated_datetime(now)}: Giá đã tốt, không cần cập nhật! Price={current_price}"
         run_row.Note = note
         run_row.Last_update = formated_datetime(datetime.now())
